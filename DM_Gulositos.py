@@ -945,4 +945,4 @@ def criar_atalho(icone, titulo, descricao, cor, acao=None):
     )
 
 
-ft.run(main)
+# ft.run(main)
