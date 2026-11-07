@@ -1,4 +1,5 @@
 import flet as ft
+from tela_precificacao import criar_tela_precificacao
 
 from database.banco import (
     criar_tabelas,
@@ -75,6 +76,8 @@ def main(page: ft.Page):
         elif indice == 3:
             abrir_custos_fixos()
         elif indice == 4:
+            abrir_precificacao()
+        elif indice == 5:
             abrir_relatorios()
         else:
             navegacao.selected_index = indice_atual["valor"]
@@ -3050,6 +3053,10 @@ def main(page: ft.Page):
             ft.NavigationBarDestination(
                 icon=ft.Icons.CALCULATE_OUTLINED,
                 label="Custos Fixos",
+            ),
+                        ft.NavigationBarDestination(
+                icon=ft.Icons.LOCAL_OFFER_OUTLINED,
+                label="Precificação",
             ),
             ft.NavigationBarDestination(
                 icon=ft.Icons.BAR_CHART_OUTLINED,
