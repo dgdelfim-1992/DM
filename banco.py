@@ -1538,6 +1538,10 @@ def criar_tabelas_orcamentos():
         }
         if "data_entrega" not in colunas_orcamentos:
             conexao.execute("ALTER TABLE orcamentos ADD COLUMN data_entrega TEXT")
+        if "status_producao" not in colunas_orcamentos:
+            conexao.execute(
+                "ALTER TABLE orcamentos ADD COLUMN status_producao TEXT NOT NULL DEFAULT 'Pendente'"
+            )
 
         conexao.commit()
     finally:
@@ -1671,6 +1675,44 @@ def obter_orcamento(orcamento_id):
         return conexao.execute(
             "SELECT * FROM orcamentos WHERE id = ?", (orcamento_id,)
         ).fetchone()
+    finally:
+        conexao.close()
+
+
+def listar_agenda_producao():
+    """Lista encomendas aprovadas com data de entrega para a agenda de produção."""
+    conexao = obter_conexao()
+    try:
+        return conexao.execute("""
+            SELECT id, numero, cliente, data_entrega, status_producao,
+                   total_final_centavos, itens_json, resumo_json, mensagem
+            FROM orcamentos
+            WHERE status = 'Aprovado'
+              AND data_entrega IS NOT NULL
+              AND TRIM(data_entrega) <> ''
+            ORDER BY data_entrega ASC, id ASC
+        """).fetchall()
+    finally:
+        conexao.close()
+
+
+def atualizar_status_producao(orcamento_id, status):
+    permitidos = {"Pendente", "Em produção", "Concluída"}
+    if status not in permitidos:
+        raise ValueError("Status de produção inválido.")
+    conexao = obter_conexao()
+    try:
+        conexao.execute("""
+            UPDATE orcamentos
+            SET status_producao = ?, atualizado_em = ?
+            WHERE id = ? AND status = 'Aprovado'
+        """, (status, datetime.now().isoformat(timespec="seconds"), orcamento_id))
+        if conexao.total_changes == 0:
+            raise ValueError("Orçamento aprovado não encontrado.")
+        conexao.commit()
+    except Exception:
+        conexao.rollback()
+        raise
     finally:
         conexao.close()
 
