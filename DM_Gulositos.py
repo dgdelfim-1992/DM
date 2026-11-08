@@ -737,7 +737,7 @@ def main(page: ft.Page):
             dialogo.open = False
             page.update()
 
-        dialogo = ft.AlertDialog(
+        dialogo = criar_dialogo_padrao(
             modal=True,
             title=ft.Text(
                 f"Histórico — {nome}",
@@ -778,7 +778,7 @@ def main(page: ft.Page):
                 dialogo.open = False
                 page.update()
 
-            dialogo = ft.AlertDialog(
+            dialogo = criar_dialogo_padrao(
                 modal=True,
                 title=ft.Text("Excluir Precificação"),
                 content=ft.Text(f"Deseja excluir a precificação de {nome}?"),
@@ -1000,7 +1000,7 @@ def main(page: ft.Page):
             quantidade = len(ids)
             def abrir_confirmacao_final(e=None):
                 fechar_dialogo(dlg_primeira_confirmacao)
-                dlg_final = ft.AlertDialog(
+                dlg_final = criar_dialogo_padrao(
                     modal=True,
                     title=ft.Text("Confirmação final"),
                     content=ft.Text(
@@ -1015,7 +1015,7 @@ def main(page: ft.Page):
                 page.overlay.append(dlg_final)
                 dlg_final.open = True
                 page.update()
-            dlg_primeira_confirmacao = ft.AlertDialog(
+            dlg_primeira_confirmacao = criar_dialogo_padrao(
                 modal=True,
                 title=ft.Text("Excluir orçamento(s)?"),
                 content=ft.Text(f"Você selecionou {quantidade} orçamento(s). Deseja continuar para a confirmação final?"),
@@ -1151,12 +1151,12 @@ def main(page: ft.Page):
             versoes = listar_versoes_orcamento(orcamento_id)
 
             def visualizar_versao(mensagem, numero_versao):
-                dlg = ft.AlertDialog(
+                dlg = criar_dialogo_padrao(
                     modal=True,
                     title=ft.Text(f"Versão anterior — {numero_versao}"),
                     content=ft.Container(
                         width=380,
-                        content=ft.TextField(value=mensagem, multiline=True, min_lines=10, max_lines=18, read_only=True)
+                        content=criar_campo_padrao(value=mensagem, multiline=True, min_lines=10, max_lines=18, read_only=True)
                     ),
                     actions=[ft.TextButton("Fechar", on_click=lambda ev: fechar_dialogo(dlg))]
                 )
@@ -1185,7 +1185,7 @@ def main(page: ft.Page):
                 )
             if not controles:
                 controles.append(ft.Text("Este orçamento ainda não possui versões anteriores.", color=TEXTO_SECUNDARIO))
-            dlg_historico = ft.AlertDialog(
+            dlg_historico = criar_dialogo_padrao(
                 modal=True,
                 title=ft.Text("Histórico de alterações"),
                 content=ft.Container(width=400, content=ft.Column(controls=controles, spacing=8, scroll=ft.ScrollMode.AUTO)),
@@ -1201,8 +1201,8 @@ def main(page: ft.Page):
                 mostrar_aviso("Orçamento não encontrado.", "#C62828")
                 return
             mensagem = registro["mensagem"]
-            texto = ft.TextField(value=mensagem, multiline=True, min_lines=12, max_lines=22, read_only=True)
-            dialogo = ft.AlertDialog(
+            texto = criar_campo_padrao(value=mensagem, multiline=True, min_lines=12, max_lines=22, read_only=True)
+            dialogo = criar_dialogo_padrao(
                 modal=True,
                 title=ft.Text(f'Orçamento {registro["numero"]}'),
                 content=ft.Container(width=380, content=texto),
@@ -1239,8 +1239,8 @@ def main(page: ft.Page):
             mostrar_aviso("Cadastre e salve a precificação de pelo menos um Produto Final.", "#C62828")
             return
 
-        cliente = ft.TextField(label="Nome do cliente (opcional)", value=(registro_edicao["cliente"] or "") if registro_edicao else "", border_radius=10)
-        validade = ft.TextField(label="Validade do orçamento (ex.: 7 dias)", value=(registro_edicao["validade"] or "7 dias") if registro_edicao else "7 dias", border_radius=10)
+        cliente = criar_campo_padrao(label="Nome do cliente (opcional)", value=(registro_edicao["cliente"] or "") if registro_edicao else "", border_radius=10)
+        validade = criar_campo_padrao(label="Validade do orçamento (ex.: 7 dias)", value=(registro_edicao["validade"] or "7 dias") if registro_edicao else "7 dias", border_radius=10)
 
         data_entrega_salva = (registro_edicao["data_entrega"] or "") if registro_edicao else ""
         if data_entrega_salva:
@@ -1251,7 +1251,7 @@ def main(page: ft.Page):
             except ValueError:
                 pass
 
-        data_entrega = ft.TextField(
+        data_entrega = criar_campo_padrao(
             label="Data de entrega (opcional)",
             hint_text="DD/MM/AAAA",
             value=data_entrega_salva,
@@ -1268,15 +1268,15 @@ def main(page: ft.Page):
                 raise ValueError(
                     "Informe a data de entrega no formato DD/MM/AAAA."
                 )
-        dd_produto = ft.Dropdown(
+        dd_produto = criar_dropdown_padrao(
             label="Produto precificado",
             options=[ft.dropdown.Option(k, v["nome"]) for k, v in produtos.items()],
             value=next(iter(produtos)),
             border_radius=10,
         )
-        quantidade = ft.TextField(label="Quantidade", value="1", keyboard_type=ft.KeyboardType.NUMBER, width=115, border_radius=10)
+        quantidade = criar_campo_padrao(label="Quantidade", value="1", keyboard_type=ft.KeyboardType.NUMBER, width=115, border_radius=10)
         resumo_edicao = json.loads(registro_edicao["resumo_json"] or "{}") if registro_edicao else {}
-        dd_tipo_desconto = ft.Dropdown(
+        dd_tipo_desconto = criar_dropdown_padrao(
             label="Tipo de desconto",
             value=registro_edicao["desconto_tipo"] if registro_edicao else "percentual",
             options=[
@@ -1287,7 +1287,7 @@ def main(page: ft.Page):
             border_radius=10,
             expand=True,
         )
-        desconto = ft.TextField(label="Desconto", value=str(registro_edicao["desconto_valor"]) if registro_edicao else "0", keyboard_type=ft.KeyboardType.NUMBER, width=115, border_radius=10)
+        desconto = criar_campo_padrao(label="Desconto", value=str(registro_edicao["desconto_valor"]) if registro_edicao else "0", keyboard_type=ft.KeyboardType.NUMBER, width=115, border_radius=10)
         sinal_50 = ft.Checkbox(label="Solicitar sinal de 50% para confirmar a encomenda", value=bool(resumo_edicao.get("sinal_50", False)))
         lista_itens = []
         if registro_edicao:
@@ -1305,7 +1305,7 @@ def main(page: ft.Page):
                 })
         lista_controle = ft.Column(spacing=8)
         resumo_controle = ft.Column(spacing=8)
-        mensagem_preview = ft.TextField(label="Prévia da mensagem para o cliente", multiline=True, min_lines=10, max_lines=18, read_only=True)
+        mensagem_preview = criar_campo_padrao(label="Prévia da mensagem para o cliente", multiline=True, min_lines=10, max_lines=18, read_only=True)
         aviso_margem = ft.Text("", size=12, weight=ft.FontWeight.BOLD)
 
         def adicionar_item(ev=None):
@@ -1585,14 +1585,14 @@ def main(page: ft.Page):
                 .replace("X", ".")
             )
 
-        dd_receita = ft.Dropdown(
+        dd_receita = criar_dropdown_padrao(
             label="Produto Final",
             options=[ft.dropdown.Option(str(r["id"]), r["nome"]) for r in receitas],
             value=str(dados_atuais["receita_id"]) if em_edicao else str(receitas[0]["id"]),
             border_radius=12,
         )
 
-        tf_qtd_emb = ft.TextField(
+        tf_qtd_emb = criar_campo_padrao(
             label="Qtd. de Produto na Embalagem",
             value=str(dados_atuais["quantidade_embalagem"]) if em_edicao else "1",
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -1600,7 +1600,7 @@ def main(page: ft.Page):
             expand=True,
         )
 
-        tf_custo_emb = ft.TextField(
+        tf_custo_emb = criar_campo_padrao(
             label="Embalagem + Sacola (R$)",
             value=(
                 f"{dados_atuais['custo_embalagem_centavos'] / 100:.2f}".replace(".", ",")
@@ -1611,7 +1611,7 @@ def main(page: ft.Page):
             expand=True,
         )
 
-        tf_preco_praticado = ft.TextField(
+        tf_preco_praticado = criar_campo_padrao(
             label="Preço de Venda Praticado (R$)",
             value=(
                 f"{dados_atuais['preco_praticado_centavos'] / 100:.2f}".replace(".", ",")
@@ -1646,7 +1646,7 @@ def main(page: ft.Page):
         )
         lbl_markup_aplicado = ft.Text("0,0%", weight=ft.FontWeight.BOLD, color=MARROM)
 
-        dd_tipo_desconto = ft.Dropdown(
+        dd_tipo_desconto = criar_dropdown_padrao(
             label="Tipo de desconto",
             value="percentual",
             options=[
@@ -1656,7 +1656,7 @@ def main(page: ft.Page):
             border_radius=12,
             expand=True,
         )
-        tf_desconto = ft.TextField(
+        tf_desconto = criar_campo_padrao(
             label="Desconto",
             value="0",
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -2350,7 +2350,7 @@ def main(page: ft.Page):
                         dialogo_erro.open = False
                         page.update()
 
-                    dialogo_erro = ft.AlertDialog(
+                    dialogo_erro = criar_dialogo_padrao(
                         modal=True,
                         title=ft.Text("Não foi possível excluir"),
                         content=ft.Text(str(erro)),
@@ -2372,7 +2372,7 @@ def main(page: ft.Page):
                         dialogo_erro.open = False
                         page.update()
 
-                    dialogo_erro = ft.AlertDialog(
+                    dialogo_erro = criar_dialogo_padrao(
                         modal=True,
                         title=ft.Text("Erro ao excluir"),
                         content=ft.Text(
@@ -2390,7 +2390,7 @@ def main(page: ft.Page):
                     dialogo_erro.open = True
                     page.update()
 
-            dialogo_primeiro = ft.AlertDialog(
+            dialogo_primeiro = criar_dialogo_padrao(
                 modal=True,
                 title=ft.Text("Excluir ingrediente?"),
                 content=ft.Text(
@@ -2410,7 +2410,7 @@ def main(page: ft.Page):
                 ],
             )
 
-            dialogo_segundo = ft.AlertDialog(
+            dialogo_segundo = criar_dialogo_padrao(
                 modal=True,
                 title=ft.Text("Confirmação definitiva"),
                 content=ft.Text(
@@ -2642,7 +2642,7 @@ def main(page: ft.Page):
         if unidade_atual not in ["g", "kg", "ml", "l", "un"]:
             unidade_atual = "g"
 
-        campo_nome = ft.TextField(
+        campo_nome = criar_campo_padrao(
             label="Nome do ingrediente *",
             hint_text="Ex.: Farinha de trigo",
             value=ingrediente["nome"] if em_edicao else "",
@@ -2650,7 +2650,7 @@ def main(page: ft.Page):
             border_color=ROSA_CLARO,
         )
 
-        campo_marca = ft.TextField(
+        campo_marca = criar_campo_padrao(
             label="Marca",
             hint_text="Ex.: Qualy",
             value=(ingrediente["marca"] or "") if em_edicao else "",
@@ -2658,7 +2658,7 @@ def main(page: ft.Page):
             border_color=ROSA_CLARO,
         )
 
-        campo_fornecedor = ft.TextField(
+        campo_fornecedor = criar_campo_padrao(
             label="Fornecedor ou estabelecimento",
             hint_text="Onde foi comprado?",
             value=(ingrediente["fornecedor"] or "") if em_edicao else "",
@@ -2666,7 +2666,7 @@ def main(page: ft.Page):
             border_color=ROSA_CLARO,
         )
 
-        campo_quantidade = ft.TextField(
+        campo_quantidade = criar_campo_padrao(
             label="Quantidade da embalagem *",
             hint_text="Ex.: 500",
             value=str(ingrediente["quantidade_compra"]) if em_edicao else "",
@@ -2675,7 +2675,7 @@ def main(page: ft.Page):
             border_color=ROSA_CLARO,
         )
 
-        campo_unidade = ft.Dropdown(
+        campo_unidade = criar_dropdown_padrao(
             label="Unidade de compra *",
             value=unidade_atual,
             border_radius=12,
@@ -2689,7 +2689,7 @@ def main(page: ft.Page):
             ],
         )
 
-        campo_preco = ft.TextField(
+        campo_preco = criar_campo_padrao(
             label="Preço pago (R$) *",
             hint_text="Ex.: 6,99",
             value=(
@@ -2701,7 +2701,7 @@ def main(page: ft.Page):
             border_color=ROSA_CLARO,
         )
 
-        campo_observacoes = ft.TextField(
+        campo_observacoes = criar_campo_padrao(
             label="Observações",
             hint_text="Informações adicionais...",
             value=(ingrediente["observacoes"] or "") if em_edicao else "",
@@ -3030,7 +3030,7 @@ def main(page: ft.Page):
 
                     mostrar_aviso(f"Erro ao excluir receita: {erro}", "#C62828")
 
-            dialogo_primeiro = ft.AlertDialog(
+            dialogo_primeiro = criar_dialogo_padrao(
                 modal=True,
                 title=ft.Text("Confirmar exclusão"),
                 content=ft.Text(
@@ -3048,7 +3048,7 @@ def main(page: ft.Page):
                 ],
             )
 
-            dialogo_segundo = ft.AlertDialog(
+            dialogo_segundo = criar_dialogo_padrao(
                 modal=True,
                 title=ft.Text("Segunda confirmação"),
                 content=ft.Text(
@@ -3424,7 +3424,7 @@ def main(page: ft.Page):
         # TIPO DE RECEITA
         # --------------------------------------------------
 
-        dropdown_tipo = ft.Dropdown(
+        dropdown_tipo = criar_dropdown_padrao(
             label="Tipo de Receita",
             value=rec["tipo"] if em_edicao else "PRODUTO",
             options=[
@@ -3444,7 +3444,7 @@ def main(page: ft.Page):
         # NOME
         # --------------------------------------------------
 
-        campo_nome_rec = ft.TextField(
+        campo_nome_rec = criar_campo_padrao(
             label="Nome da Receita *",
             hint_text="Ex.: BiscoNut / Massa Base",
             value=rec["nome"] if em_edicao else "",
@@ -3455,7 +3455,7 @@ def main(page: ft.Page):
         # RENDIMENTO E UNIDADE
         # --------------------------------------------------
 
-        campo_rendimento = ft.TextField(
+        campo_rendimento = criar_campo_padrao(
             label="Quantidade do rendimento *",
             value=(
                 str(rec["rendimento_unidades"])
@@ -3466,7 +3466,7 @@ def main(page: ft.Page):
             expand=True,
         )
 
-        dropdown_unidade_rendimento = ft.Dropdown(
+        dropdown_unidade_rendimento = criar_dropdown_padrao(
             label="Unidade",
             value=(
                 rec["unidade_rendimento"]
@@ -3491,7 +3491,7 @@ def main(page: ft.Page):
         # TEMPOS DE PRODUÇÃO
         # --------------------------------------------------
 
-        campo_tempo_preparo = ft.TextField(
+        campo_tempo_preparo = criar_campo_padrao(
             label="Tempo de preparo (min)",
             value=(
                 str(rec["tempo_preparo_min"] or 0)
@@ -3501,7 +3501,7 @@ def main(page: ft.Page):
             border_radius=12,
         )
 
-        campo_tempo_batedeira = ft.TextField(
+        campo_tempo_batedeira = criar_campo_padrao(
             label="Tempo de batedeira (min)",
             value=(
                 str(rec["tempo_batedeira_min"] or 0)
@@ -3511,7 +3511,7 @@ def main(page: ft.Page):
             border_radius=12,
         )
 
-        campo_tempo_forno = ft.TextField(
+        campo_tempo_forno = criar_campo_padrao(
             label="Tempo de forno (min)",
             value=(
                 str(rec["tempo_forno_min"] or 0)
@@ -3560,14 +3560,14 @@ def main(page: ft.Page):
 
         def adicionar_insumo_ui(opcao_val=None, qtd_val=""):
 
-            dropdown_combo = ft.Dropdown(
+            dropdown_combo = criar_dropdown_padrao(
                 label="Selecione o Insumo ou Sub-receita",
                 value=opcao_val,
                 expand=2,
                 options=opcoes_combo,
             )
 
-            campo_qtd_usada = ft.TextField(
+            campo_qtd_usada = criar_campo_padrao(
                 label="Qtd usada",
                 value=qtd_val,
                 expand=1,
@@ -3922,51 +3922,51 @@ def main(page: ft.Page):
             if faturamento_numero > 0 else 0
         )
 
-        campo_faturamento = ft.TextField(
+        campo_faturamento = criar_campo_padrao(
             label="Faturamento Médio Mensal Alvo (R$)",
             value=str(faturamento_atual),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12, expand=True
         )
         
-        campo_markup_ideal = ft.TextField(
+        campo_markup_ideal = criar_campo_padrao(
             label="Markup Ideal Padrão (%)",
             value=str(markup_ideal_atual).replace(".", ","),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12, expand=True
         )
-        campo_margem_minima = ft.TextField(
+        campo_margem_minima = criar_campo_padrao(
             label="Margem Mínima (%)",
             value=str(margem_minima_atual).replace(".", ","),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12, expand=True
         )
 
-        campo_taxa_pix = ft.TextField(
+        campo_taxa_pix = criar_campo_padrao(
             label="Taxa Pix (%)",
             value=str(taxas_atuais["pix"]).replace(".", ","),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12, expand=True
         )
-        campo_taxa_dinheiro = ft.TextField(
+        campo_taxa_dinheiro = criar_campo_padrao(
             label="Taxa Dinheiro (%)",
             value=str(taxas_atuais["dinheiro"]).replace(".", ","),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12, expand=True
         )
-        campo_taxa_debito = ft.TextField(
+        campo_taxa_debito = criar_campo_padrao(
             label="Taxa Débito (%)",
             value=str(taxas_atuais["debito"]).replace(".", ","),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12, expand=True
         )
-        campo_taxa_credito = ft.TextField(
+        campo_taxa_credito = criar_campo_padrao(
             label="Crédito à vista (%)",
             value=str(taxas_atuais["credito_avista"]).replace(".", ","),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12, expand=True
         )
-        campo_taxa_parcelado = ft.TextField(
+        campo_taxa_parcelado = criar_campo_padrao(
             label="Crédito parcelado (%)",
             value=str(taxas_atuais["credito_parcelado"]).replace(".", ","),
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -4021,13 +4021,13 @@ def main(page: ft.Page):
 
             em_ed = custo is not None
 
-            c_desc = ft.TextField(
+            c_desc = criar_campo_padrao(
                 label="Descrição do Custo Fixo *",
                 value=custo["descricao"] if em_ed else "",
                 border_radius=12,
             )
 
-            c_val = ft.TextField(
+            c_val = criar_campo_padrao(
                 label="Valor (R$) *",
                 value=(
                     f"{custo['valor_centavos'] / 100:.2f}".replace(".", ",")
