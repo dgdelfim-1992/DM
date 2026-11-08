@@ -349,6 +349,30 @@ def obter_ingrediente(ingrediente_id):
     finally:
         conexao.close()
 
+def listar_historico_precos_ingrediente(ingrediente_id):
+    """Retorna o histórico de preços de um ingrediente, do mais recente ao mais antigo."""
+    conexao = obter_conexao()
+    try:
+        return conexao.execute("""
+            SELECT
+                id,
+                ingrediente_id,
+                nome,
+                quantidade_compra,
+                unidade_compra,
+                preco_pago_centavos,
+                quantidade_base,
+                unidade_base,
+                custo_por_unidade_base,
+                registrado_em
+            FROM historico_precos_ingredientes
+            WHERE ingrediente_id = ?
+            ORDER BY id DESC
+        """, (ingrediente_id,)).fetchall()
+    finally:
+        conexao.close()
+
+
 def atualizar_ingrediente(
     ingrediente_id,
     nome,
