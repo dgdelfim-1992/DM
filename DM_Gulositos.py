@@ -544,7 +544,7 @@ def main(page: ft.Page):
                                             ft.dropdown.Option("Em produção"),
                                             ft.dropdown.Option("Concluída"),
                                         ],
-                                        on_change=alterar_status,
+                                        on_select=alterar_status,
                                     ),
                                 ],
                             ),
