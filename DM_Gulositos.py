@@ -62,6 +62,8 @@ from database.banco import (
     obter_orcamento,
     atualizar_status_orcamento,
     obter_dados_painel,
+    listar_agenda_producao,
+    atualizar_status_producao,
 )
 
 
@@ -448,6 +450,170 @@ def main(page: ft.Page):
     # MENU DE OPÇÕES (SUBSTITUI A BARRA INFERIOR ANTIGA)
     # ==================================================
 
+    # ==================================================
+    # AGENDA DE PRODUÇÃO
+    # ==================================================
+    def abrir_agenda_producao(e=None):
+        filtro = {"valor": "Todos"}
+
+        def formatar_data(valor):
+            try:
+                return datetime.strptime(valor[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+            except (ValueError, TypeError):
+                return valor or "Sem data"
+
+        conteudo = ft.Column(spacing=10)
+
+        def aplicar_filtro(valor):
+            filtro["valor"] = valor
+            montar_agenda()
+
+        def montar_agenda():
+            registros = listar_agenda_producao()
+            if filtro["valor"] != "Todos":
+                registros = [
+                    registro for registro in registros
+                    if registro["status_producao"] == filtro["valor"]
+                ]
+
+            hoje = datetime.now().date()
+            cartoes = []
+            for registro in registros:
+                data_texto = formatar_data(registro["data_entrega"])
+                try:
+                    data_entrega_obj = datetime.strptime(registro["data_entrega"][:10], "%Y-%m-%d").date()
+                    atrasada = data_entrega_obj < hoje and registro["status_producao"] != "Concluída"
+                except (ValueError, TypeError):
+                    atrasada = False
+
+                try:
+                    itens = json.loads(registro["itens_json"] or "[]")
+                    nomes_itens = [
+                        f'{item.get("quantidade", 1):g} {item.get("unidade", "un")} - {item.get("nome", "Produto")}'
+                        for item in itens
+                    ]
+                except (ValueError, TypeError):
+                    nomes_itens = []
+
+                def alterar_status(ev, oid=registro["id"]):
+                    try:
+                        atualizar_status_producao(oid, ev.control.value)
+                        montar_agenda()
+                        mostrar_aviso("Status da produção atualizado.")
+                    except Exception as erro:
+                        mostrar_aviso(f"Não foi possível atualizar: {erro}", "#C62828")
+
+                cartoes.append(
+                    ft.Container(
+                        bgcolor=BRANCO,
+                        padding=15,
+                        border_radius=16,
+                        content=ft.Column(spacing=8, controls=[
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text(f'Encomenda {registro["numero"]}', weight=ft.FontWeight.BOLD, color=MARROM),
+                                    ft.Text(
+                                        "ATRASADA" if atrasada else data_texto,
+                                        color="#C62828" if atrasada else ROSA,
+                                        weight=ft.FontWeight.BOLD,
+                                        size=12,
+                                    ),
+                                ],
+                            ),
+                            ft.Text(registro["cliente"] or "Cliente não informado", color=TEXTO_SECUNDARIO, size=12),
+                            ft.Text("Produtos: " + (", ".join(nomes_itens) if nomes_itens else "Consulte os detalhes do orçamento"), color=MARROM, size=12),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text(
+                                        "Total: " + formatar_reais(registro["total_final_centavos"] / 100),
+                                        color=MARROM,
+                                        weight=ft.FontWeight.BOLD,
+                                        size=12,
+                                    ),
+                                    ft.Dropdown(
+                                        width=155,
+                                        dense=True,
+                                        value=registro["status_producao"] or "Pendente",
+                                        options=[
+                                            ft.dropdown.Option("Pendente"),
+                                            ft.dropdown.Option("Em produção"),
+                                            ft.dropdown.Option("Concluída"),
+                                        ],
+                                        on_change=alterar_status,
+                                    ),
+                                ],
+                            ),
+                        ]),
+                    )
+                )
+
+            if not cartoes:
+                cartoes.append(
+                    ft.Container(
+                        bgcolor=BRANCO,
+                        padding=22,
+                        border_radius=16,
+                        content=ft.Column(
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            spacing=8,
+                            controls=[
+                                ft.Icon(ft.Icons.CALENDAR_MONTH_OUTLINED, size=38, color=ROSA),
+                                ft.Text("Nenhuma encomenda encontrada.", color=MARROM, weight=ft.FontWeight.BOLD),
+                                ft.Text(
+                                    "A agenda mostra orçamentos aprovados que tenham data de entrega.",
+                                    color=TEXTO_SECUNDARIO,
+                                    size=12,
+                                    text_align=ft.TextAlign.CENTER,
+                                ),
+                            ],
+                        ),
+                    )
+                )
+
+            conteudo.controls = [
+                ft.Row(
+                    wrap=True,
+                    spacing=8,
+                    controls=[
+                        ft.Button(
+                            nome,
+                            on_click=lambda ev, valor=nome: aplicar_filtro(valor),
+                            bgcolor=ROSA if filtro["valor"] == nome else ROSA_CLARO,
+                            color=BRANCO if filtro["valor"] == nome else MARROM,
+                        )
+                        for nome in ["Todos", "Pendente", "Em produção", "Concluída"]
+                    ],
+                ),
+                *cartoes,
+            ]
+            page.update()
+
+        tela = ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+            spacing=14,
+            controls=[
+                ft.Container(
+                    padding=ft.Padding.only(left=15, right=18, top=18, bottom=6),
+                    content=ft.Row(controls=[
+                        ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=MARROM, on_click=abrir_menu_opcoes),
+                        ft.Text("Agenda de Produção", size=22, weight=ft.FontWeight.BOLD, color=MARROM),
+                    ]),
+                ),
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=18),
+                    content=conteudo,
+                ),
+            ],
+        )
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
+        page.controls.clear()
+        page.add(tela)
+        montar_agenda()
+
     def abrir_menu_opcoes(e=None):
         def criar_card_menu(icone, titulo, descricao, acao):
             return ft.Container(
@@ -513,7 +679,13 @@ def main(page: ft.Page):
                             ft.Row(
                                 spacing=12,
                                 controls=[
+                                    criar_card_menu(ft.Icons.CALENDAR_MONTH_OUTLINED, "Agenda de Produção", "Organizar encomendas e entregas", abrir_agenda_producao),
                                     criar_card_menu(ft.Icons.BAR_CHART_OUTLINED, "Relatórios", "Análise de lucratividade", abrir_relatorios),
+                                ],
+                            ),
+                            ft.Row(
+                                spacing=12,
+                                controls=[
                                     criar_card_menu(ft.Icons.SAVE_OUTLINED, "Backup / Exportar", "Salvar e restaurar dados", abrir_tela_backup),
                                 ],
                             ),
