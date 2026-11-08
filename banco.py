@@ -1462,6 +1462,17 @@ def criar_tabelas_orcamentos():
 
             CREATE INDEX IF NOT EXISTS idx_orcamentos_criado
             ON orcamentos(criado_em DESC);
+
+            CREATE TABLE IF NOT EXISTS orcamento_historico (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                orcamento_id INTEGER NOT NULL,
+                numero TEXT NOT NULL,
+                snapshot_json TEXT NOT NULL,
+                registrado_em TEXT NOT NULL,
+                FOREIGN KEY (orcamento_id) REFERENCES orcamentos(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_orcamento_historico
+            ON orcamento_historico(orcamento_id, registrado_em DESC);
         """)
         conexao.commit()
     finally:
@@ -1518,9 +1529,18 @@ def atualizar_orcamento(orcamento_id, dados):
     try:
         if not conexao.execute("SELECT id FROM orcamentos WHERE id = ?", (orcamento_id,)).fetchone():
             raise ValueError("Orçamento não encontrado para edição.")
+        atual = conexao.execute("SELECT * FROM orcamentos WHERE id = ?", (orcamento_id,)).fetchone()
+        conexao.execute("""
+            INSERT INTO orcamento_historico (orcamento_id, numero, snapshot_json, registrado_em)
+            VALUES (?, ?, ?, ?)
+        """, (
+            orcamento_id, atual["numero"],
+            json.dumps(dict(atual), ensure_ascii=False),
+            agora
+        ))
         conexao.execute("""
             UPDATE orcamentos
-            SET cliente=?, validade=?, desconto_tipo=?, desconto_valor=?, modalidade=?,
+            SET cliente=?, status='Em elaboração', validade=?, desconto_tipo=?, desconto_valor=?, modalidade=?,
                 total_referencia_centavos=?, total_final_centavos=?, itens_json=?,
                 resumo_json=?, mensagem=?, atualizado_em=?
             WHERE id=?
@@ -1548,6 +1568,19 @@ def atualizar_orcamento(orcamento_id, dados):
     except Exception:
         conexao.rollback()
         raise
+    finally:
+        conexao.close()
+
+
+def listar_versoes_orcamento(orcamento_id):
+    conexao = obter_conexao()
+    try:
+        return conexao.execute("""
+            SELECT id, numero, snapshot_json, registrado_em
+            FROM orcamento_historico
+            WHERE orcamento_id = ?
+            ORDER BY id DESC
+        """, (orcamento_id,)).fetchall()
     finally:
         conexao.close()
 
