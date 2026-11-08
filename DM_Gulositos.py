@@ -870,7 +870,12 @@ def main(page: ft.Page):
                 content=ft.Container(width=380, content=texto),
                 actions=[
                     ft.TextButton("Fechar", on_click=lambda ev: fechar_dialogo(dialogo)),
-                    ft.TextButton("Copiar mensagem", on_click=lambda ev: copiar_mensagem(mensagem)),
+                    ft.Button(
+                        "Copiar mensagem",
+                        icon=ft.Icons.CONTENT_COPY,
+                        action=ft.CopyToClipboard(mensagem),
+                        on_click=lambda ev: mostrar_aviso("Texto do orçamento copiado. Pode colar no WhatsApp."),
+                    ),
                 ],
             )
             page.overlay.append(dialogo)
@@ -880,13 +885,6 @@ def main(page: ft.Page):
         def fechar_dialogo(dialogo):
             dialogo.open = False
             page.update()
-
-        def copiar_mensagem(mensagem):
-            try:
-                page.set_clipboard(mensagem)
-                mostrar_aviso("Texto do orçamento copiado. Pode colar no WhatsApp.")
-            except Exception as erro:
-                mostrar_aviso(f"Não foi possível copiar automaticamente: {erro}", "#C62828")
 
         def cabecalho_orcamentos(titulo, voltar):
             return ft.Container(
@@ -1043,6 +1041,7 @@ def main(page: ft.Page):
                 )
                 aviso_margem.color = "#C62828" if aviso_margem.value.startswith("Atenção") else "#2E7D32"
                 mensagem_preview.value = gerar_mensagem(totais, desconto_reais) if lista_itens else "Adicione produtos para montar a mensagem."
+                botao_salvar_orcamento.action = ft.CopyToClipboard(mensagem_preview.value)
                 page.update()
             except Exception as erro:
                 aviso_margem.value = str(erro)
@@ -1102,14 +1101,23 @@ def main(page: ft.Page):
                     "itens": itens_snapshot,
                 }
                 salvar_orcamento(dados)
-                page.set_clipboard(mensagem)
-                mostrar_aviso("Orçamento salvo e mensagem copiada para enviar.")
+                mostrar_aviso("Orçamento salvo. A mensagem foi enviada para cópia; se necessário, use o botão de copiar no histórico.")
                 montar_tela_historico()
             except Exception as erro:
                 mostrar_aviso(str(erro), "#C62828")
 
         for controle in (dd_tipo_desconto, desconto):
             controle.on_change = atualizar_orcamento
+
+        botao_salvar_orcamento = ft.Button(
+            "Salvar orçamento e copiar mensagem",
+            icon=ft.Icons.CONTENT_COPY,
+            action=ft.CopyToClipboard(mensagem_preview.value),
+            on_click=salvar_e_copiar,
+            bgcolor=ROSA,
+            color=BRANCO,
+            expand=True,
+        )
 
         tela = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14, controls=[
             cabecalho_orcamentos("Novo orçamento", abrir_menu_opcoes),
@@ -1130,7 +1138,7 @@ def main(page: ft.Page):
                 aviso_margem,
                 ft.Text("Mensagem pronta para compartilhar", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
                 mensagem_preview,
-                ft.Button("Salvar orçamento e copiar mensagem", icon=ft.Icons.CONTENT_COPY, on_click=salvar_e_copiar, bgcolor=ROSA, color=BRANCO, expand=True),
+                botao_salvar_orcamento,
                 ft.Button("Ver histórico de orçamentos", icon=ft.Icons.HISTORY, on_click=lambda ev: montar_tela_historico(), bgcolor=ROSA_CLARO, color=MARROM),
             ])),
         ])
