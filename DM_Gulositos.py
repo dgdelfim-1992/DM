@@ -52,6 +52,7 @@ from database.banco import (
     obter_fator_custo_fixo,
     obter_conexao,
     salvar_orcamento,
+    excluir_orcamentos,
     atualizar_orcamento as atualizar_orcamento_salvo,
     listar_versoes_orcamento,
     listar_orcamentos,
@@ -82,6 +83,7 @@ def main(page: ft.Page):
     BRANCO = "#FFFFFF"
 
     indice_atual = {"valor": 0}
+    ids_orcamentos_selecionados = set()
 
     # ==================================================
     # UTILITÁRIO SEGURO DE SNACKBAR
@@ -821,6 +823,58 @@ def main(page: ft.Page):
         def formatar_reais(valor):
             return ("R$ {:,.2f}".format(valor)).replace(",", "X").replace(".", ",").replace("X", ".")
 
+        def alternar_selecao_orcamento(orcamento_id, selecionado):
+            if selecionado:
+                ids_orcamentos_selecionados.add(orcamento_id)
+            else:
+                ids_orcamentos_selecionados.discard(orcamento_id)
+            montar_tela_historico()
+
+        def executar_exclusao(dialogo, ids):
+            fechar_dialogo(dialogo)
+            try:
+                quantidade = excluir_orcamentos(ids)
+                ids_orcamentos_selecionados.difference_update(ids)
+                mostrar_aviso(f"{quantidade} orçamento(s) excluído(s) com sucesso.")
+                montar_tela_historico()
+            except Exception as erro:
+                mostrar_aviso(f"Não foi possível excluir os orçamentos: {erro}", "#C62828")
+
+        def confirmar_exclusao_orcamentos(orcamento_ids):
+            ids = list(dict.fromkeys(int(valor) for valor in orcamento_ids))
+            if not ids:
+                mostrar_aviso("Selecione pelo menos um orçamento para excluir.", "#C62828")
+                return
+            quantidade = len(ids)
+            def abrir_confirmacao_final(e=None):
+                fechar_dialogo(dlg_primeira_confirmacao)
+                dlg_final = ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text("Confirmação final"),
+                    content=ft.Text(
+                        f"Esta ação é permanente. Deseja realmente excluir {quantidade} "
+                        f"orçamento(s), incluindo seus itens e histórico de alterações?"
+                    ),
+                    actions=[
+                        ft.TextButton("Cancelar", on_click=lambda ev: fechar_dialogo(dlg_final)),
+                        ft.Button("Excluir definitivamente", icon=ft.Icons.DELETE_FOREVER, bgcolor="#A52D35", color=BRANCO, on_click=lambda ev: executar_exclusao(dlg_final, ids)),
+                    ],
+                )
+                page.overlay.append(dlg_final)
+                dlg_final.open = True
+                page.update()
+            dlg_primeira_confirmacao = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Excluir orçamento(s)?"),
+                content=ft.Text(f"Você selecionou {quantidade} orçamento(s). Deseja continuar para a confirmação final?"),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=lambda ev: fechar_dialogo(dlg_primeira_confirmacao)),
+                    ft.Button("Continuar", on_click=abrir_confirmacao_final),
+                ],
+            )
+            page.overlay.append(dlg_primeira_confirmacao)
+            dlg_primeira_confirmacao.open = True
+            page.update()
         def montar_tela_historico():
             registros = listar_orcamentos()
             cards = []
@@ -839,7 +893,10 @@ def main(page: ft.Page):
                         content=ft.Column(spacing=7, controls=[
                             ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[
                                 ft.Text(f'Orçamento {registro["numero"]}', weight=ft.FontWeight.BOLD, color=MARROM),
-                                ft.Text(registro["status"], size=11, weight=ft.FontWeight.BOLD, color=cor_texto),
+                                ft.Row(spacing=4, controls=[
+                                    ft.Text(registro["status"], size=11, weight=ft.FontWeight.BOLD, color=cor_texto),
+                                    ft.Checkbox(value=registro["id"] in ids_orcamentos_selecionados, tooltip="Selecionar para exclusão em lote", on_change=lambda ev, oid=registro["id"]: alternar_selecao_orcamento(oid, ev.control.value)),
+                                ]),
                             ]),
                             ft.Text(registro["cliente"] or "Cliente não informado", color=TEXTO_SECUNDARIO, size=12),
                             ft.Text(f"Total do orçamento (Pix): {formatar_reais(total)}", weight=ft.FontWeight.BOLD, color=MARROM),
@@ -880,6 +937,12 @@ def main(page: ft.Page):
                                     icon_color="#A52D35",
                                     on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Recusado"),
                                 ),
+                                ft.IconButton(
+                                    icon=ft.Icons.DELETE_OUTLINE,
+                                    tooltip="Excluir orçamento",
+                                    icon_color="#A52D35",
+                                    on_click=lambda ev, oid=registro["id"]: confirmar_exclusao_orcamentos([oid]),
+                                ),
                             ]),
                         ])
                     )
@@ -888,6 +951,10 @@ def main(page: ft.Page):
                 cards.append(ft.Text("Nenhum orçamento salvo ainda.", color=TEXTO_SECUNDARIO))
             tela = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14, controls=[
                 cabecalho_orcamentos("Histórico de orçamentos", abrir_orcamentos),
+                ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[
+                    ft.Text("Selecione para excluir em lote", size=11, color=TEXTO_SECUNDARIO),
+                    ft.TextButton("Excluir selecionados", icon=ft.Icons.DELETE, disabled=not ids_orcamentos_selecionados, on_click=lambda ev: confirmar_exclusao_orcamentos(sorted(ids_orcamentos_selecionados))),
+                ])),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Column(spacing=12, controls=cards)),
             ])
             page.controls.clear()
