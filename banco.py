@@ -1033,12 +1033,18 @@ def salvar_precificacao_v2(
     quantidade_embalagem,
     custo_embalagem_centavos,
     markup_ideal_pct,
-    preco_praticado_centavos
+    preco_praticado_centavos,
+    margem_minima_pct=None
 ):
     conexao = obter_conexao()
 
     try:
         taxa_cartao = obter_taxa_cartao()
+        if margem_minima_pct is None:
+            margem_minima_pct = obter_margem_minima()
+        margem_minima_pct = float(margem_minima_pct)
+        if margem_minima_pct < 0 or margem_minima_pct >= 100:
+            raise ValueError("A margem mínima deve estar entre 0% e 99,99%.")
 
         if id:
             conexao.execute("""
@@ -1095,11 +1101,24 @@ def salvar_precificacao_v2(
             custo_embalagem_centavos,
             markup_ideal_pct,
             preco_praticado_centavos,
-            taxa_cartao
+            taxa_cartao,
+            margem_minima_pct
         )
 
         if not resultado:
             raise ValueError("Não foi possível calcular a precificação.")
+        if resultado["status"] != "Dentro da Margem":
+            raise ValueError(
+                f"Preço não salvo: a margem real é {resultado['margem_real_pct']:.2f}%, "
+                f"abaixo do mínimo de {margem_minima_pct:.2f}%."
+            )
+
+        conexao.execute(
+            """INSERT INTO configuracoes (chave, valor)
+               VALUES ('margem_minima_pct', ?)
+               ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor""",
+            (str(margem_minima_pct),)
+        )
 
         registrado_em = datetime.now().isoformat(timespec="seconds")
 
@@ -1168,7 +1187,38 @@ def obter_taxa_cartao():
     finally:
         conexao.close()
 
-def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_embalagem_centavos, markup_ideal_pct, preco_praticado_centavos, taxa_cartao_pct):
+
+def obter_margem_minima():
+    """Retorna a margem mínima global; usa 20% como padrão inicial."""
+    conexao = obter_conexao()
+    try:
+        row = conexao.execute(
+            "SELECT valor FROM configuracoes WHERE chave = 'margem_minima_pct'"
+        ).fetchone()
+        return float(row['valor']) if row else 20.0
+    finally:
+        conexao.close()
+
+
+def salvar_margem_minima(valor):
+    valor = float(valor)
+    if valor < 0 or valor >= 100:
+        raise ValueError("A margem mínima deve estar entre 0% e 99,99%.")
+
+    conexao = obter_conexao()
+    try:
+        conexao.execute(
+            """INSERT INTO configuracoes (chave, valor)
+               VALUES ('margem_minima_pct', ?)
+               ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor""",
+            (str(valor),)
+        )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+
+def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_embalagem_centavos, markup_ideal_pct, preco_praticado_centavos, taxa_cartao_pct, margem_minima_pct=None):
     # 1. Custo Base Insumos
     custo_base = calcular_custo_receita(receita_id)
     if not custo_base:
@@ -1215,7 +1265,10 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     imposto_cartao = preco_praticado * (taxa_cartao_pct / 100.0)
     margem_contribuicao = preco_praticado - custo_total - imposto_cartao
     
-    status = "Dentro da Margem" if markup_aplicado_pct >= markup_ideal_pct else "Ajustar"
+    if margem_minima_pct is None:
+        margem_minima_pct = obter_margem_minima()
+    margem_real_pct = (margem_contribuicao / preco_praticado * 100.0) if preco_praticado > 0 else 0.0
+    status = "Dentro da Margem" if margem_real_pct >= margem_minima_pct else "Abaixo da Margem Mínima"
     
     return {
         "custo_insumo": custo_insumo,
@@ -1226,6 +1279,8 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
         "preco_praticado": preco_praticado,
         "markup_aplicado_pct": markup_aplicado_pct,
         "margem_contribuicao": margem_contribuicao,
+        "margem_real_pct": margem_real_pct,
+        "margem_minima_pct": margem_minima_pct,
         "status": status
     }
 
