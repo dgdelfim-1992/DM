@@ -128,12 +128,14 @@ def main(page: ft.Page):
         kwargs.setdefault("border_color", ROSA_CLARO)
         kwargs.setdefault("focused_border_color", ROSA)
         kwargs.setdefault("cursor_color", ROSA)
+        kwargs.setdefault("label_style", ft.TextStyle(color=TEXTO_SECUNDARIO))
         return ft.TextField(**kwargs)
 
     def criar_dropdown_padrao(**kwargs):
         kwargs.setdefault("border_radius", 12)
         kwargs.setdefault("border_color", ROSA_CLARO)
         kwargs.setdefault("focused_border_color", ROSA)
+        kwargs.setdefault("label_style", ft.TextStyle(color=TEXTO_SECUNDARIO))
         return ft.Dropdown(**kwargs)
 
     def criar_dialogo_padrao(*args, **kwargs):
@@ -453,7 +455,8 @@ def main(page: ft.Page):
                 height=142,
                 padding=14,
                 bgcolor=BRANCO,
-                border_radius=16,
+                border=ft.border.all(1, ROSA_CLARO),
+                border_radius=18,
                 on_click=acao,
                 content=ft.Column(
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -5106,8 +5109,9 @@ def criar_atalho(icone, titulo, descricao, cor, acao=None):
     return ft.Container(
         expand=True,
         bgcolor="#FFFFFF",
-        padding=15,
-        border_radius=16,
+        padding=16,
+        border=ft.border.all(1, "#F1DFDC"),
+        border_radius=18,
         on_click=acao,
         content=ft.Column(
             spacing=8,
