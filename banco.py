@@ -1034,12 +1034,19 @@ def salvar_precificacao_v2(
     custo_embalagem_centavos,
     markup_ideal_pct,
     preco_praticado_centavos,
-    margem_minima_pct=None
+    margem_minima_pct=None,
+    taxa_cartao_pct=None
 ):
     conexao = obter_conexao()
 
     try:
-        taxa_cartao = obter_taxa_cartao()
+        taxa_cartao = (
+            obter_taxa_cartao()
+            if taxa_cartao_pct is None
+            else float(taxa_cartao_pct)
+        )
+        if taxa_cartao < 0 or taxa_cartao >= 100:
+            raise ValueError("A taxa de pagamento deve estar entre 0% e 99,99%.")
         if margem_minima_pct is None:
             margem_minima_pct = obter_margem_minima()
         margem_minima_pct = float(margem_minima_pct)
@@ -1179,13 +1186,72 @@ def excluir_precificacao_v2(id):
     finally:
         conexao.close()
 
-def obter_taxa_cartao():
+def obter_taxas_pagamento():
+    """Retorna as taxas globais configuradas para cada forma de pagamento."""
     conexao = obter_conexao()
     try:
-        row = conexao.execute("SELECT valor FROM configuracoes WHERE chave = 'taxa_cartao'").fetchone()
-        return float(row['valor']) if row else 0.0
+        valores = {
+            row["chave"]: float(row["valor"])
+            for row in conexao.execute(
+                """SELECT chave, valor FROM configuracoes
+                   WHERE chave IN (
+                       'taxa_pix', 'taxa_dinheiro', 'taxa_debito',
+                       'taxa_credito_avista', 'taxa_credito_parcelado',
+                       'taxa_cartao'
+                   )"""
+            ).fetchall()
+        }
+        return {
+            "pix": valores.get("taxa_pix", 0.0),
+            "dinheiro": valores.get("taxa_dinheiro", 0.0),
+            "debito": valores.get("taxa_debito", 0.0),
+            "credito_avista": valores.get("taxa_credito_avista", valores.get("taxa_cartao", 0.0)),
+            "credito_parcelado": valores.get("taxa_credito_parcelado", 0.0),
+        }
     finally:
         conexao.close()
+
+
+def salvar_taxas_pagamento(taxas):
+    """Valida e grava todas as taxas globais em uma única transação."""
+    chaves = {
+        "pix": "taxa_pix",
+        "dinheiro": "taxa_dinheiro",
+        "debito": "taxa_debito",
+        "credito_avista": "taxa_credito_avista",
+        "credito_parcelado": "taxa_credito_parcelado",
+    }
+    valores = {}
+    for campo, chave in chaves.items():
+        valor = float(taxas.get(campo, 0))
+        if valor < 0 or valor >= 100:
+            raise ValueError("Cada taxa deve estar entre 0% e 99,99%.")
+        valores[chave] = str(valor)
+
+    conexao = obter_conexao()
+    try:
+        for chave, valor in valores.items():
+            conexao.execute(
+                """INSERT INTO configuracoes (chave, valor)
+                   VALUES (?, ?)
+                   ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor""",
+                (chave, valor)
+            )
+        # Mantém compatibilidade com telas e registros antigos.
+        conexao.execute(
+            """INSERT INTO configuracoes (chave, valor)
+               VALUES ('taxa_cartao', ?)
+               ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor""",
+            (valores["taxa_credito_avista"],)
+        )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+
+def obter_taxa_cartao():
+    """Compatibilidade: taxa antiga equivale ao crédito à vista."""
+    return obter_taxas_pagamento()["credito_avista"]
 
 
 def obter_margem_minima():
