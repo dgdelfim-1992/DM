@@ -786,7 +786,8 @@ def main(page: ft.Page):
     # ==================================================
     # ORÇAMENTOS
     # ==================================================
-    def abrir_orcamentos(e=None, orcamento_id=None):
+    def abrir_orcamentos(e=None, orcamento_id=None, filtro_status=None):
+        filtro_status_atual = {"valor": filtro_status or "Todos"}
         registro_edicao = obter_orcamento(orcamento_id) if orcamento_id else None
         precificacoes = listar_precificacoes()
         taxas = obter_taxas_pagamento()
@@ -840,7 +841,7 @@ def main(page: ft.Page):
                 quantidade = excluir_orcamentos(ids)
                 ids_orcamentos_selecionados.difference_update(ids)
                 mostrar_aviso(f"{quantidade} orçamento(s) excluído(s) com sucesso.")
-                montar_tela_historico()
+                montar_tela_historico(filtro_status_atual["valor"])
             except Exception as erro:
                 mostrar_aviso(f"Não foi possível excluir os orçamentos: {erro}", "#C62828")
 
@@ -879,8 +880,13 @@ def main(page: ft.Page):
             page.overlay.append(dlg_primeira_confirmacao)
             dlg_primeira_confirmacao.open = True
             page.update()
-        def montar_tela_historico():
+        def montar_tela_historico(filtro_status=None):
+            if filtro_status is not None:
+                filtro_status_atual["valor"] = filtro_status
+            status_selecionado = filtro_status_atual["valor"]
             registros = listar_orcamentos()
+            if status_selecionado != "Todos":
+                registros = [r for r in registros if r["status"] == status_selecionado]
             cards = []
             for registro in registros:
                 total = registro["total_final_centavos"] / 100
@@ -952,9 +958,33 @@ def main(page: ft.Page):
                     )
                 )
             if not cards:
-                cards.append(ft.Text("Nenhum orçamento salvo ainda.", color=TEXTO_SECUNDARIO))
+                mensagem_vazia = (
+                    "Nenhum orçamento encontrado com este status."
+                    if status_selecionado != "Todos"
+                    else "Nenhum orçamento salvo ainda."
+                )
+                cards.append(ft.Text(mensagem_vazia, color=TEXTO_SECUNDARIO))
+
+            opcoes_filtro = ["Todos", "Aprovado", "Em elaboração", "Recusado", "Enviado"]
+            botoes_filtro = ft.Row(
+                wrap=True,
+                spacing=6,
+                controls=[
+                    ft.Button(
+                        texto,
+                        on_click=lambda ev, status=texto: montar_tela_historico(status),
+                        bgcolor=ROSA if texto == status_selecionado else ROSA_CLARO,
+                        color=BRANCO if texto == status_selecionado else MARROM,
+                    )
+                    for texto in opcoes_filtro
+                ],
+            )
             tela = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14, controls=[
                 cabecalho_orcamentos("Histórico de orçamentos", abrir_orcamentos),
+                ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Column(spacing=8, controls=[
+                    ft.Text("Filtrar por status", size=12, weight=ft.FontWeight.BOLD, color=MARROM),
+                    botoes_filtro,
+                ])),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[
                     ft.Text("Selecione para excluir em lote", size=11, color=TEXTO_SECUNDARIO),
                     ft.TextButton("Excluir selecionados", icon=ft.Icons.DELETE, on_click=lambda ev: confirmar_exclusao_orcamentos(sorted(ids_orcamentos_selecionados))),
@@ -968,7 +998,7 @@ def main(page: ft.Page):
         def mudar_status_orcamento(orcamento_id, status):
             atualizar_status_orcamento(orcamento_id, status)
             mostrar_aviso(f"Orçamento atualizado: {status}.")
-            montar_tela_historico()
+            montar_tela_historico(filtro_status_atual["valor"])
 
         def abrir_historico_versoes(orcamento_id):
             versoes = listar_versoes_orcamento(orcamento_id)
@@ -1365,6 +1395,9 @@ def main(page: ft.Page):
         indice_atual["valor"] = 2
         navegacao.selected_index = 2
         page.controls.clear()
+        if filtro_status is not None:
+            montar_tela_historico(filtro_status)
+            return
         page.add(tela)
         atualizar_orcamento()
         page.update()
@@ -4691,10 +4724,10 @@ def main(page: ft.Page):
                         criar_card_painel(
                             ft.Icons.SEND,
                             painel["aguardando_retorno"],
-                            "Aguardando retorno",
-                            "Orçamentos enviados",
+                            "Enviados",
+                            "Orçamentos aguardando retorno",
                             ROSA,
-                            None,
+                            lambda ev: abrir_orcamentos(filtro_status="Enviado"),
                         ),
                         criar_card_painel(
                             ft.Icons.CHECK_CIRCLE,
@@ -4702,7 +4735,7 @@ def main(page: ft.Page):
                             "Aprovados",
                             "Encomendas confirmadas",
                             "#2E7D32",
-                            None,
+                            lambda ev: abrir_orcamentos(filtro_status="Aprovado"),
                         ),
                     ],
                 ),
@@ -4715,15 +4748,15 @@ def main(page: ft.Page):
                             "Em elaboração",
                             "Orçamentos não enviados",
                             "#A66A20",
-                            None,
+                            lambda ev: abrir_orcamentos(filtro_status="Em elaboração"),
                         ),
                         criar_card_painel(
-                            ft.Icons.CALENDAR_TODAY,
-                            painel["entregas_proximos_7_dias"],
-                            "Entregas em 7 dias",
-                            "Encomendas aprovadas",
-                            MARROM,
-                            None,
+                            ft.Icons.CANCEL,
+                            painel["recusados"],
+                            "Recusados",
+                            "Orçamentos não aprovados",
+                            "#A52D35",
+                            lambda ev: abrir_orcamentos(filtro_status="Recusado"),
                         ),
                     ],
                 ),
