@@ -1060,7 +1060,6 @@ def main(page: ft.Page):
                 itens_snapshot = []
                 for item in lista_itens:
                     preco_final_base = item["preco_base"] * fator
-                    custo_final = item["custo"] * fator
                     itens_snapshot.append({
                         "receita_id": item["receita_id"],
                         "nome": item["nome"],
@@ -1652,7 +1651,6 @@ def main(page: ft.Page):
                             tf_preco_praticado,
                             painel_resultados,
                             painel_comparativo,
-                            painel_desconto,
                             ft.Container(
                                 width=380,
                                 padding=14,
