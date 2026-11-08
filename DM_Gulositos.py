@@ -846,6 +846,7 @@ def main(page: ft.Page):
                             ft.Row(wrap=True, controls=[
                                 ft.TextButton("Abrir / copiar", on_click=lambda ev, oid=registro["id"]: abrir_detalhe_orcamento(oid)),
                                 ft.TextButton("Editar", on_click=lambda ev, oid=registro["id"]: abrir_orcamentos(orcamento_id=oid)),
+                                ft.TextButton("Alterações", on_click=lambda ev, oid=registro["id"]: abrir_historico_versoes(oid)),
                                 ft.TextButton("Marcar enviado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Enviado")),
                                 ft.TextButton("Aprovado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Aprovado")),
                                 ft.TextButton("Recusado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Recusado")),
