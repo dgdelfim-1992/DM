@@ -53,6 +53,7 @@ from database.banco import (
     obter_conexao,
     salvar_orcamento,
     atualizar_orcamento as atualizar_orcamento_salvo,
+    listar_versoes_orcamento,
     listar_orcamentos,
     obter_orcamento,
     atualizar_status_orcamento,
@@ -867,6 +868,54 @@ def main(page: ft.Page):
             mostrar_aviso(f"Orçamento atualizado: {status}.")
             montar_tela_historico()
 
+        def abrir_historico_versoes(orcamento_id):
+            versoes = listar_versoes_orcamento(orcamento_id)
+
+            def visualizar_versao(mensagem, numero_versao):
+                dlg = ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text(f"Versão anterior — {numero_versao}"),
+                    content=ft.Container(
+                        width=380,
+                        content=ft.TextField(value=mensagem, multiline=True, min_lines=10, max_lines=18, read_only=True)
+                    ),
+                    actions=[ft.TextButton("Fechar", on_click=lambda ev: fechar_dialogo(dlg))]
+                )
+                page.overlay.append(dlg)
+                dlg.open = True
+                page.update()
+
+            controles = []
+            for versao in versoes:
+                dados_anteriores = json.loads(versao["snapshot_json"])
+                data_versao = versao["registrado_em"].replace("T", " ")
+                controles.append(
+                    ft.Container(
+                        bgcolor=ROSA_CLARO, padding=10, border_radius=10,
+                        content=ft.Row(
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            controls=[
+                                ft.Column(expand=True, spacing=2, controls=[
+                                    ft.Text(data_versao, size=11, color=MARROM),
+                                    ft.Text(f'Total Pix: {formatar_reais(dados_anteriores["total_final_centavos"] / 100)}', size=12, weight=ft.FontWeight.BOLD, color=MARROM),
+                                ]),
+                                ft.TextButton("Ver versão", on_click=lambda ev, msg=dados_anteriores["mensagem"], num=versao["numero"]: visualizar_versao(msg, num)),
+                            ]
+                        )
+                    )
+                )
+            if not controles:
+                controles.append(ft.Text("Este orçamento ainda não possui versões anteriores.", color=TEXTO_SECUNDARIO))
+            dlg_historico = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Histórico de alterações"),
+                content=ft.Container(width=400, content=ft.Column(controls=controles, spacing=8, scroll=ft.ScrollMode.AUTO)),
+                actions=[ft.TextButton("Fechar", on_click=lambda ev: fechar_dialogo(dlg_historico))]
+            )
+            page.overlay.append(dlg_historico)
+            dlg_historico.open = True
+            page.update()
+
         def abrir_detalhe_orcamento(orcamento_id):
             registro = obter_orcamento(orcamento_id)
             if not registro:
@@ -880,6 +929,7 @@ def main(page: ft.Page):
                 content=ft.Container(width=380, content=texto),
                 actions=[
                     ft.TextButton("Editar orçamento", on_click=lambda ev: (fechar_dialogo(dialogo), abrir_orcamentos(orcamento_id=orcamento_id))),
+                    ft.TextButton("Histórico de alterações", on_click=lambda ev: abrir_historico_versoes(orcamento_id)),
                     ft.TextButton("Fechar", on_click=lambda ev: fechar_dialogo(dialogo)),
                     ft.Button(
                         "Copiar mensagem",
