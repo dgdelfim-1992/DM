@@ -1020,7 +1020,7 @@ def main(page: ft.Page):
                     taxa = float(taxas.get(chave, 0))
                     total = totais[chave]
                     liquido = total * (1 - taxa / 100)
-                    lucro = liquido - total_custo * fator
+                    lucro = liquido - total_custo
                     margem = (lucro / total * 100) if total > 0 else 0
                     dentro = margem >= margem_minima
                     resumo_controle.controls.append(
@@ -1039,7 +1039,7 @@ def main(page: ft.Page):
                 aviso_margem.value = (
                     "Atenção: uma ou mais formas de pagamento ficam abaixo da margem mínima."
                     if any(
-                        ((totais[chave] * (1 - float(taxas.get(chave, 0)) / 100) - total_custo * fator) / totais[chave] * 100 < margem_minima)
+                        ((totais[chave] * (1 - float(taxas.get(chave, 0)) / 100) - total_custo) / totais[chave] * 100 < margem_minima)
                         for _, chave in modalidades if totais[chave] > 0
                     ) else "Todas as formas de pagamento respeitam a margem mínima."
                 )
@@ -1067,7 +1067,7 @@ def main(page: ft.Page):
                         "nome": item["nome"],
                         "quantidade": item["quantidade"],
                         "unidade": item["unidade"],
-                        "custo_unitario_centavos": round(custo_final * 100),
+                        "custo_unitario_centavos": round(item["custo"] * 100),
                         "preco_base_centavos": round(item["preco_base"] * 100),
                         "preco_final_unitario_centavos": round(preco_final_base * 100),
                         "subtotal_centavos": round(preco_final_base * item["quantidade"] * 100),
@@ -1083,7 +1083,7 @@ def main(page: ft.Page):
                     "totais_por_modalidade": totais,
                     "taxas": taxas,
                     "margem_minima": margem_minima,
-                    "custo_total": total_custo * fator,
+                    "custo_total": total_custo,
                     "desconto_reais": desconto_reais,
                     "desconto_tipo": dd_tipo_desconto.value,
                     "desconto_valor": float((desconto.value or "0").replace(",", ".")),
