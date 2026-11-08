@@ -7,6 +7,8 @@ import os
 import shutil
 import json
 
+from logo_dm import LOGO_DM_BASE64
+
 from database.banco import (
     CAMINHO_BANCO,
     listar_precificacoes,
@@ -58,6 +60,7 @@ from database.banco import (
     listar_orcamentos,
     obter_orcamento,
     atualizar_status_orcamento,
+    obter_dados_painel,
 )
 
 
@@ -1059,6 +1062,33 @@ def main(page: ft.Page):
 
         cliente = ft.TextField(label="Nome do cliente (opcional)", value=(registro_edicao["cliente"] or "") if registro_edicao else "", border_radius=10)
         validade = ft.TextField(label="Validade do orçamento (ex.: 7 dias)", value=(registro_edicao["validade"] or "7 dias") if registro_edicao else "7 dias", border_radius=10)
+
+        data_entrega_salva = (registro_edicao["data_entrega"] or "") if registro_edicao else ""
+        if data_entrega_salva:
+            try:
+                data_entrega_salva = datetime.strptime(
+                    data_entrega_salva[:10], "%Y-%m-%d"
+                ).strftime("%d/%m/%Y")
+            except ValueError:
+                pass
+
+        data_entrega = ft.TextField(
+            label="Data de entrega (opcional)",
+            hint_text="DD/MM/AAAA",
+            value=data_entrega_salva,
+            border_radius=10,
+        )
+
+        def obter_data_entrega_iso():
+            valor = (data_entrega.value or "").strip()
+            if not valor:
+                return None
+            try:
+                return datetime.strptime(valor, "%d/%m/%Y").date().isoformat()
+            except ValueError:
+                raise ValueError(
+                    "Informe a data de entrega no formato DD/MM/AAAA."
+                )
         dd_produto = ft.Dropdown(
             label="Produto precificado",
             options=[ft.dropdown.Option(k, v["nome"]) for k, v in produtos.items()],
@@ -1157,6 +1187,12 @@ def main(page: ft.Page):
             if desconto_reais > 0:
                 linhas += ["", f"Desconto aplicado: {formatar_reais(desconto_reais)}"]
             linhas.append(f"Validade: {validade.value.strip() or 'a combinar'}")
+            data_entrega_iso = obter_data_entrega_iso()
+            if data_entrega_iso:
+                data_entrega_texto = datetime.strptime(
+                    data_entrega_iso, "%Y-%m-%d"
+                ).strftime("%d/%m/%Y")
+                linhas.append(f"Data de entrega: {data_entrega_texto}")
             if sinal_50.value:
                 linhas += ["", "*Condição para encomenda:* solicitamos 50% de sinal para confirmar a reserva."]
                 for nome, chave in modalidades:
@@ -1264,6 +1300,7 @@ def main(page: ft.Page):
                     "cliente": cliente.value.strip(),
                     "status": "Em elaboração",
                     "validade": validade.value.strip(),
+                    "data_entrega": obter_data_entrega_iso(),
                     "desconto_tipo": dd_tipo_desconto.value,
                     "desconto_valor": resumo["desconto_valor"],
                     "modalidade": "pix",
@@ -1284,7 +1321,7 @@ def main(page: ft.Page):
             except Exception as erro:
                 mostrar_aviso(str(erro), "#C62828")
 
-        for controle in (dd_tipo_desconto, desconto, sinal_50):
+        for controle in (dd_tipo_desconto, desconto, sinal_50, data_entrega):
             controle.on_change = atualizar_orcamento
 
         botao_salvar_orcamento = ft.Button(
@@ -1301,7 +1338,7 @@ def main(page: ft.Page):
             cabecalho_orcamentos("Editar orçamento" if registro_edicao else "Novo orçamento", abrir_menu_opcoes),
             ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Column(spacing=12, controls=[
                 ft.Text("Editar orçamento" if registro_edicao else "Dados do cliente", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
-                cliente, validade,
+                cliente, validade, data_entrega,
                 ft.Divider(color=ROSA_CLARO),
                 ft.Text("Adicionar produtos", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
                 dd_produto,
@@ -4567,161 +4604,351 @@ def main(page: ft.Page):
         page.update()
 
     # ==================================================
-    # CABEÇALHO DA HOME
+    # PAINEL INICIAL - DM GULOSITOS
     # ==================================================
 
-    cabecalho = ft.Container(
-        padding=ft.Padding.only(
-            left=20,
-            right=20,
-            top=25,
-            bottom=15,
-        ),
-        content=ft.Row(
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            controls=[
-                ft.Column(
-                    spacing=3,
-                    controls=[
-                        ft.Text(
-                            "DM Gulositos",
-                            size=25,
-                            weight=ft.FontWeight.BOLD,
-                            color=MARROM,
-                        ),
-                        ft.Text(
-                            "GESTÃO E PRECIFICAÇÃO",
-                            size=10,
-                            color=TEXTO_SECUNDARIO,
-                        ),
-                    ],
-                ),
-                ft.Container(
-                    bgcolor=BRANCO,
-                    padding=12,
-                    border_radius=15,
-                    content=ft.Icon(
-                        ft.Icons.CAKE_OUTLINED,
-                        color=ROSA,
-                        size=30,
+    def criar_card_painel(icone, valor, titulo, descricao, cor, acao):
+        return ft.Container(
+            expand=True,
+            bgcolor=BRANCO,
+            padding=14,
+            border_radius=16,
+            on_click=acao,
+            content=ft.Row(
+                spacing=10,
+                controls=[
+                    ft.Container(
+                        width=42,
+                        height=42,
+                        bgcolor=ROSA_CLARO,
+                        border_radius=12,
+                        alignment=ft.Alignment(0, 0),
+                        content=ft.Icon(icone, color=cor, size=22),
                     ),
-                ),
-            ],
-        ),
-    )
+                    ft.Column(
+                        expand=True,
+                        spacing=2,
+                        controls=[
+                            ft.Text(str(valor), size=22, weight=ft.FontWeight.BOLD, color=MARROM),
+                            ft.Text(titulo, size=12, weight=ft.FontWeight.BOLD, color=MARROM),
+                            ft.Text(descricao, size=10, color=TEXTO_SECUNDARIO),
+                        ],
+                    ),
+                ],
+            ),
+        )
 
-    # ==================================================
-    # CARTÃO DE RESUMO
-    # ==================================================
+    def montar_painel_inicial():
+        painel = obter_dados_painel()
+        agora = datetime.now()
+        hora = agora.hour
+        saudacao = "Bom dia" if hora < 12 else ("Boa tarde" if hora < 18 else "Boa noite")
 
-    resumo = ft.Container(
-        bgcolor=BRANCO,
-        padding=20,
-        border_radius=18,
-        content=ft.Column(
-            spacing=15,
+        cabecalho = ft.Container(
+            margin=ft.Margin.only(left=18, right=18, top=18),
+            padding=16,
+            bgcolor=BRANCO,
+            border_radius=20,
+            content=ft.Row(
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=14,
+                controls=[
+                    ft.Container(
+                        width=82,
+                        height=82,
+                        padding=4,
+                        bgcolor=ROSA_CLARO,
+                        border_radius=16,
+                        alignment=ft.Alignment(0, 0),
+                        content=ft.Image(
+                            src_base64=LOGO_DM_BASE64,
+                            width=74,
+                            height=74,
+                            fit=ft.BoxFit.CONTAIN,
+                        ),
+                    ),
+                    ft.Column(
+                        expand=True,
+                        spacing=4,
+                        controls=[
+                            ft.Text(f"{saudacao}!", size=21, weight=ft.FontWeight.BOLD, color=MARROM),
+                            ft.Text("Bem-vinda ao painel de gestão", size=12, color=TEXTO_SECUNDARIO),
+                            ft.Text(agora.strftime("%d/%m/%Y"), size=11, color=ROSA, weight=ft.FontWeight.BOLD),
+                        ],
+                    ),
+                ],
+            ),
+        )
+
+        indicadores = ft.Column(
+            spacing=10,
             controls=[
-                ft.Text(
-                    "RESUMO DO NEGÓCIO",
-                    size=11,
-                    weight=ft.FontWeight.BOLD,
-                    color=TEXTO_SECUNDARIO,
-                ),
                 ft.Row(
+                    spacing=10,
                     controls=[
-                        criar_indicador(
-                            "29",
-                            "Insumos no estoque",
-                            MARROM,
-                        ),
-                        criar_indicador(
-                            "19.5%",
-                            "Taxa Custo Fixo",
-                            MARROM,
-                        ),
-                    ],
-                ),
-                ft.Divider(color=ROSA_CLARO),
-                ft.Row(
-                    controls=[
-                        criar_indicador(
-                            "100%",
-                            "Margem padrão",
+                        criar_card_painel(
+                            ft.Icons.MAIL_OUTLINE,
+                            painel["aguardando_retorno"],
+                            "Aguardando retorno",
+                            "Orçamentos enviados",
                             ROSA,
+                            abrir_orcamentos,
                         ),
-                        criar_indicador(
-                            "R$ 2.000",
-                            "Fat. Mensal Alvo",
+                        criar_card_painel(
+                            ft.Icons.CHECK_CIRCLE,
+                            painel["aprovados"],
+                            "Aprovados",
+                            "Encomendas confirmadas",
+                            "#2E7D32",
+                            abrir_orcamentos,
+                        ),
+                    ],
+                ),
+                ft.Row(
+                    spacing=10,
+                    controls=[
+                        criar_card_painel(
+                            ft.Icons.EDIT,
+                            painel["em_elaboracao"],
+                            "Em elaboração",
+                            "Orçamentos não enviados",
+                            "#A66A20",
+                            abrir_orcamentos,
+                        ),
+                        criar_card_painel(
+                            ft.Icons.CALENDAR_TODAY,
+                            painel["entregas_proximos_7_dias"],
+                            "Entregas em 7 dias",
+                            "Encomendas aprovadas",
                             MARROM,
+                            abrir_orcamentos,
                         ),
                     ],
                 ),
             ],
-        ),
-    )
+        )
 
-    # ==================================================
-    # ACESSOS PRINCIPAIS
-    # ==================================================
+        entregas_controles = []
+        for entrega in painel["entregas"]:
+            try:
+                data_entrega_texto = datetime.strptime(
+                    str(entrega["data_entrega"])[:10], "%Y-%m-%d"
+                ).strftime("%d/%m")
+            except (ValueError, TypeError):
+                data_entrega_texto = str(entrega["data_entrega"] or "—")
 
-    atalhos = ft.Column(
-        spacing=12,
-        controls=[
-            ft.Text(
-                "O que deseja fazer?",
-                size=19,
-                weight=ft.FontWeight.BOLD,
-                color=MARROM,
-            ),
-            ft.Row(
-                controls=[
-                    criar_atalho(
-                        ft.Icons.INVENTORY_2_OUTLINED,
-                        "Ingredientes",
-                        "Insumos e preços",
-                        ROSA,
-                        abrir_ingredientes,
+            entregas_controles.append(
+                ft.Container(
+                    padding=12,
+                    bgcolor=ROSA_CLARO,
+                    border_radius=12,
+                    on_click=lambda ev, oid=entrega["id"]: abrir_orcamentos(orcamento_id=oid),
+                    content=ft.Row(
+                        spacing=10,
+                        controls=[
+                            ft.Container(
+                                width=48,
+                                height=48,
+                                bgcolor=BRANCO,
+                                border_radius=12,
+                                alignment=ft.Alignment(0, 0),
+                                content=ft.Column(
+                                    spacing=0,
+                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                    controls=[
+                                        ft.Icon(ft.Icons.CALENDAR_TODAY, size=16, color=ROSA),
+                                        ft.Text(data_entrega_texto, size=11, weight=ft.FontWeight.BOLD, color=MARROM),
+                                    ],
+                                ),
+                            ),
+                            ft.Column(
+                                expand=True,
+                                spacing=3,
+                                controls=[
+                                    ft.Text(
+                                        entrega["cliente"] or "Cliente não informado",
+                                        weight=ft.FontWeight.BOLD,
+                                        color=MARROM,
+                                        size=13,
+                                    ),
+                                    ft.Text(f'Orçamento {entrega["numero"]}', size=10, color=TEXTO_SECUNDARIO),
+                                ],
+                            ),
+                            ft.Text(
+                                "R$ " + f'{entrega["total_final_centavos"] / 100:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."),
+                                size=12,
+                                weight=ft.FontWeight.BOLD,
+                                color=MARROM,
+                            ),
+                        ],
                     ),
-                    criar_atalho(
-                        ft.Icons.MENU_BOOK_OUTLINED,
-                        "Receitas",
-                        "Fichas técnicas",
-                        ROSA,
-                        abrir_receitas,
+                )
+            )
+
+        if not entregas_controles:
+            entregas_controles.append(
+                ft.Container(
+                    padding=16,
+                    bgcolor=ROSA_CLARO,
+                    border_radius=12,
+                    content=ft.Row(
+                        spacing=10,
+                        controls=[
+                            ft.Icon(ft.Icons.CALENDAR_TODAY, color=ROSA, size=24),
+                            ft.Text(
+                                "Nenhuma entrega aprovada nos próximos 7 dias. "
+                                "Cadastre a data de entrega nos novos orçamentos.",
+                                size=12,
+                                color=TEXTO_SECUNDARIO,
+                                expand=True,
+                            ),
+                        ],
                     ),
-                ],
-            ),
-            ft.Row(
-                controls=[
-                    criar_atalho(
-                        ft.Icons.CALCULATE_OUTLINED,
-                        "Precificação",
-                        "Preço de venda dos produtos",
-                        ROSA,
-                        abrir_precificacao,
+                )
+            )
+
+        atividades_controles = []
+        for atividade in painel["atividades"]:
+            icone = {
+                "Orçamento": ft.Icons.DESCRIPTION_OUTLINED,
+                "Insumo": ft.Icons.INVENTORY_2_OUTLINED,
+                "Precificação": ft.Icons.CALCULATE_OUTLINED,
+            }.get(atividade["tipo"], ft.Icons.HISTORY)
+
+            data_atividade = str(atividade["data"] or "")
+            try:
+                data_atividade = datetime.fromisoformat(
+                    data_atividade.replace("Z", "+00:00")
+                ).strftime("%d/%m %H:%M")
+            except (ValueError, TypeError):
+                data_atividade = data_atividade[:16].replace("T", " ")
+
+            atividades_controles.append(
+                ft.Row(
+                    spacing=10,
+                    controls=[
+                        ft.Container(
+                            width=34,
+                            height=34,
+                            bgcolor=ROSA_CLARO,
+                            border_radius=10,
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Icon(icone, color=ROSA, size=18),
+                        ),
+                        ft.Column(
+                            expand=True,
+                            spacing=2,
+                            controls=[
+                                ft.Text(atividade["descricao"], size=12, weight=ft.FontWeight.BOLD, color=MARROM),
+                                ft.Text(
+                                    f'{atividade["tipo"]} • {atividade["detalhe"]}',
+                                    size=10,
+                                    color=TEXTO_SECUNDARIO,
+                                ),
+                            ],
+                        ),
+                        ft.Text(data_atividade, size=9, color=TEXTO_SECUNDARIO),
+                    ],
+                )
+            )
+
+        if not atividades_controles:
+            atividades_controles.append(
+                ft.Text(
+                    "As movimentações recentes aparecerão aqui.",
+                    size=12,
+                    color=TEXTO_SECUNDARIO,
+                )
+            )
+
+        atalhos_painel = ft.Column(
+            spacing=10,
+            controls=[
+                ft.Row(
+                    spacing=10,
+                    controls=[
+                        criar_atalho(
+                            ft.Icons.ADD_CIRCLE_OUTLINE,
+                            "Novo orçamento",
+                            "Criar proposta para cliente",
+                            ROSA,
+                            abrir_orcamentos,
+                        ),
+                        criar_atalho(
+                            ft.Icons.CALCULATE_OUTLINED,
+                            "Precificação",
+                            "Calcular preço de venda",
+                            ROSA,
+                            abrir_precificacao,
+                        ),
+                    ],
+                ),
+                ft.Row(
+                    spacing=10,
+                    controls=[
+                        criar_atalho(
+                            ft.Icons.MENU_BOOK_OUTLINED,
+                            "Receitas",
+                            "Fichas técnicas",
+                            ROSA,
+                            abrir_receitas,
+                        ),
+                        criar_atalho(
+                            ft.Icons.INVENTORY_2_OUTLINED,
+                            "Insumos",
+                            "Cadastro e preços",
+                            ROSA,
+                            abrir_ingredientes,
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        return ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+            spacing=16,
+            controls=[
+                cabecalho,
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=18),
+                    content=ft.Column(
+                        spacing=10,
+                        controls=[
+                            ft.Text("Visão geral", size=18, weight=ft.FontWeight.BOLD, color=MARROM),
+                            ft.Text(
+                                "Acompanhe os orçamentos e a rotina da doceria.",
+                                size=11,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                            indicadores,
+                            ft.Text("Acessos rápidos", size=18, weight=ft.FontWeight.BOLD, color=MARROM),
+                            atalhos_painel,
+                            ft.Text("Próximas encomendas", size=18, weight=ft.FontWeight.BOLD, color=MARROM),
+                            ft.Text(
+                                "Entregas aprovadas previstas para os próximos 7 dias.",
+                                size=11,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                            ft.Container(
+                                padding=12,
+                                bgcolor=BRANCO,
+                                border_radius=16,
+                                content=ft.Column(spacing=9, controls=entregas_controles),
+                            ),
+                            ft.Text("Atividades recentes", size=18, weight=ft.FontWeight.BOLD, color=MARROM),
+                            ft.Container(
+                                padding=14,
+                                bgcolor=BRANCO,
+                                border_radius=16,
+                                content=ft.Column(spacing=12, controls=atividades_controles),
+                            ),
+                        ],
                     ),
-                    criar_atalho(
-                        ft.Icons.DESCRIPTION_OUTLINED,
-                        "Orçamentos",
-                        "Propostas para clientes",
-                        ROSA,
-                        abrir_orcamentos,
-                    ),
-                ],
-            ),
-            ft.Row(
-                controls=[
-                    criar_atalho(
-                        ft.Icons.BAR_CHART_OUTLINED,
-                        "Relatórios",
-                        "Custos e lucros",
-                        ROSA,
-                        abrir_relatorios,
-                    ),
-                ],
-            ),
-        ],
-    )
+                ),
+            ],
+        )
 
     # ==================================================
     # MENU INFERIOR
@@ -4754,24 +4981,7 @@ def main(page: ft.Page):
     # TELA INICIAL
     # ==================================================
 
-    conteudo = ft.Column(
-        expand=True,
-        scroll=ft.ScrollMode.AUTO,
-        spacing=18,
-        controls=[
-            cabecalho,
-            ft.Container(
-                padding=ft.Padding.symmetric(horizontal=18),
-                content=ft.Column(
-                    spacing=18,
-                    controls=[
-                        resumo,
-                        atalhos,
-                    ],
-                ),
-            ),
-        ],
-    )
+    conteudo = montar_painel_inicial()
 
     page.navigation_bar = navegacao
     page.add(conteudo)
