@@ -1510,6 +1510,48 @@ def salvar_orcamento(dados):
         conexao.close()
 
 
+
+def atualizar_orcamento(orcamento_id, dados):
+    """Atualiza orçamento e itens em uma única transação."""
+    agora = datetime.now().isoformat(timespec="seconds")
+    conexao = obter_conexao()
+    try:
+        if not conexao.execute("SELECT id FROM orcamentos WHERE id = ?", (orcamento_id,)).fetchone():
+            raise ValueError("Orçamento não encontrado para edição.")
+        conexao.execute("""
+            UPDATE orcamentos
+            SET cliente=?, validade=?, desconto_tipo=?, desconto_valor=?, modalidade=?,
+                total_referencia_centavos=?, total_final_centavos=?, itens_json=?,
+                resumo_json=?, mensagem=?, atualizado_em=?
+            WHERE id=?
+        """, (
+            dados.get("cliente",""), dados.get("validade",""), dados.get("desconto_tipo","nenhum"),
+            float(dados.get("desconto_valor",0)), dados.get("modalidade","pix"),
+            int(dados["total_referencia_centavos"]), int(dados["total_final_centavos"]),
+            dados["itens_json"], dados["resumo_json"], dados["mensagem"], agora, orcamento_id
+        ))
+        conexao.execute("DELETE FROM orcamento_itens WHERE orcamento_id=?", (orcamento_id,))
+        for item in dados["itens"]:
+            conexao.execute("""
+                INSERT INTO orcamento_itens (
+                    orcamento_id, receita_id, nome_produto, quantidade, unidade,
+                    custo_unitario_centavos, preco_base_centavos, preco_final_unitario_centavos,
+                    subtotal_centavos, snapshot_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                orcamento_id, item.get("receita_id"), item["nome"], float(item["quantidade"]),
+                item["unidade"], int(item["custo_unitario_centavos"]), int(item["preco_base_centavos"]),
+                int(item["preco_final_unitario_centavos"]), int(item["subtotal_centavos"]), item["snapshot_json"]
+            ))
+        conexao.commit()
+        return orcamento_id
+    except Exception:
+        conexao.rollback()
+        raise
+    finally:
+        conexao.close()
+
+
 def listar_orcamentos():
     conexao = obter_conexao()
     try:
