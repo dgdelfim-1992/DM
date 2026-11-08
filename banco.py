@@ -20,6 +20,7 @@ def obter_conexao():
 # =========================================================
 def criar_tabelas():
     criar_tabela_precificacao_v2()
+    criar_tabelas_orcamentos()
     conexao = obter_conexao()
     try:
         conexao.executescript("""
@@ -1413,5 +1414,136 @@ def listar_historico_precificacao_v2(precificacao_id):
             ORDER BY registrado_em DESC, id DESC
         """, (precificacao_id,)).fetchall()
 
+    finally:
+        conexao.close()
+
+
+
+# =========================================================
+# ORÇAMENTOS
+# =========================================================
+def criar_tabelas_orcamentos():
+    """Cria as tabelas de orçamento sem alterar dados existentes."""
+    conexao = obter_conexao()
+    try:
+        conexao.executescript("""
+            CREATE TABLE IF NOT EXISTS orcamentos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero TEXT NOT NULL UNIQUE,
+                cliente TEXT,
+                status TEXT NOT NULL DEFAULT 'Em elaboração',
+                validade TEXT,
+                desconto_tipo TEXT NOT NULL DEFAULT 'nenhum',
+                desconto_valor REAL NOT NULL DEFAULT 0,
+                modalidade TEXT NOT NULL DEFAULT 'pix',
+                total_referencia_centavos INTEGER NOT NULL DEFAULT 0,
+                total_final_centavos INTEGER NOT NULL DEFAULT 0,
+                itens_json TEXT NOT NULL,
+                resumo_json TEXT NOT NULL,
+                mensagem TEXT NOT NULL,
+                criado_em TEXT NOT NULL,
+                atualizado_em TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS orcamento_itens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                orcamento_id INTEGER NOT NULL,
+                receita_id INTEGER,
+                nome_produto TEXT NOT NULL,
+                quantidade REAL NOT NULL,
+                unidade TEXT NOT NULL,
+                custo_unitario_centavos INTEGER NOT NULL,
+                preco_base_centavos INTEGER NOT NULL,
+                preco_final_unitario_centavos INTEGER NOT NULL,
+                subtotal_centavos INTEGER NOT NULL,
+                snapshot_json TEXT NOT NULL,
+                FOREIGN KEY (orcamento_id) REFERENCES orcamentos(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_orcamentos_criado
+            ON orcamentos(criado_em DESC);
+        """)
+        conexao.commit()
+    finally:
+        conexao.close()
+
+
+def salvar_orcamento(dados):
+    """Salva o orçamento e seus itens como fotografia dos valores da data."""
+    agora = datetime.now().isoformat(timespec="seconds")
+    conexao = obter_conexao()
+    try:
+        cursor = conexao.execute("""
+            INSERT INTO orcamentos (
+                numero, cliente, status, validade, desconto_tipo, desconto_valor,
+                modalidade, total_referencia_centavos, total_final_centavos,
+                itens_json, resumo_json, mensagem, criado_em, atualizado_em
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            dados["numero"], dados.get("cliente", ""), dados.get("status", "Em elaboração"),
+            dados.get("validade", ""), dados.get("desconto_tipo", "nenhum"),
+            float(dados.get("desconto_valor", 0)), dados.get("modalidade", "pix"),
+            int(dados["total_referencia_centavos"]), int(dados["total_final_centavos"]),
+            dados["itens_json"], dados["resumo_json"], dados["mensagem"], agora, agora
+        ))
+        orcamento_id = cursor.lastrowid
+
+        for item in dados["itens"]:
+            conexao.execute("""
+                INSERT INTO orcamento_itens (
+                    orcamento_id, receita_id, nome_produto, quantidade, unidade,
+                    custo_unitario_centavos, preco_base_centavos,
+                    preco_final_unitario_centavos, subtotal_centavos, snapshot_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                orcamento_id, item.get("receita_id"), item["nome"], float(item["quantidade"]),
+                item["unidade"], int(item["custo_unitario_centavos"]),
+                int(item["preco_base_centavos"]), int(item["preco_final_unitario_centavos"]),
+                int(item["subtotal_centavos"]), item["snapshot_json"]
+            ))
+        conexao.commit()
+        return orcamento_id
+    except Exception:
+        conexao.rollback()
+        raise
+    finally:
+        conexao.close()
+
+
+def listar_orcamentos():
+    conexao = obter_conexao()
+    try:
+        return conexao.execute("""
+            SELECT id, numero, cliente, status, validade,
+                   total_final_centavos, criado_em
+            FROM orcamentos
+            ORDER BY id DESC
+        """).fetchall()
+    finally:
+        conexao.close()
+
+
+def obter_orcamento(orcamento_id):
+    conexao = obter_conexao()
+    try:
+        return conexao.execute(
+            "SELECT * FROM orcamentos WHERE id = ?", (orcamento_id,)
+        ).fetchone()
+    finally:
+        conexao.close()
+
+
+def atualizar_status_orcamento(orcamento_id, status):
+    permitidos = {"Em elaboração", "Enviado", "Aprovado", "Recusado"}
+    if status not in permitidos:
+        raise ValueError("Status de orçamento inválido.")
+    conexao = obter_conexao()
+    try:
+        conexao.execute("""
+            UPDATE orcamentos
+            SET status = ?, atualizado_em = ?
+            WHERE id = ?
+        """, (status, datetime.now().isoformat(timespec="seconds"), orcamento_id))
+        conexao.commit()
     finally:
         conexao.close()
