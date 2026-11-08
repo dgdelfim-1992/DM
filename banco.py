@@ -1675,6 +1675,16 @@ def obter_dados_painel():
 
         hoje = date.today()
         limite = hoje + timedelta(days=7)
+        quantidade_entregas = conexao.execute("""
+            SELECT COUNT(*)
+            FROM orcamentos
+            WHERE status = 'Aprovado'
+              AND data_entrega IS NOT NULL
+              AND TRIM(data_entrega) <> ''
+              AND data_entrega >= ?
+              AND data_entrega <= ?
+        """, (hoje.isoformat(), limite.isoformat())).fetchone()[0]
+
         entregas = conexao.execute("""
             SELECT id, numero, cliente, status, data_entrega, total_final_centavos
             FROM orcamentos
@@ -1724,7 +1734,7 @@ def obter_dados_painel():
             "aguardando_retorno": contagens.get("Enviado", 0),
             "aprovados": contagens.get("Aprovado", 0),
             "em_elaboracao": contagens.get("Em elaboração", 0),
-            "entregas_proximos_7_dias": len(entregas),
+            "entregas_proximos_7_dias": quantidade_entregas,
             "entregas": entregas,
             "atividades": atividades,
         }
