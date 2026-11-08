@@ -126,17 +126,37 @@ def main(page: ft.Page):
     # COMPONENTES VISUAIS PADRONIZADOS
     # ==================================================
     def criar_campo_padrao(**kwargs):
-        kwargs.setdefault("border_radius", 12)
-        kwargs.setdefault("border_color", ROSA_CLARO)
-        kwargs.setdefault("focused_border_color", ROSA)
+        kwargs.setdefault(
+            "border",
+            {
+                ft.ControlState.DEFAULT: ft.OutlineInputBorder(
+                    border_radius=12,
+                    side=ft.BorderSide(width=1, color=ROSA_CLARO),
+                ),
+                ft.ControlState.FOCUSED: ft.OutlineInputBorder(
+                    border_radius=12,
+                    side=ft.BorderSide(width=2, color=ROSA),
+                ),
+            },
+        )
         kwargs.setdefault("cursor_color", ROSA)
         kwargs.setdefault("label_style", ft.TextStyle(color=TEXTO_SECUNDARIO))
         return ft.TextField(**kwargs)
 
     def criar_dropdown_padrao(**kwargs):
-        kwargs.setdefault("border_radius", 12)
-        kwargs.setdefault("border_color", ROSA_CLARO)
-        kwargs.setdefault("focused_border_color", ROSA)
+        kwargs.setdefault(
+            "border",
+            {
+                ft.ControlState.DEFAULT: ft.OutlineInputBorder(
+                    border_radius=12,
+                    side=ft.BorderSide(width=1, color=ROSA_CLARO),
+                ),
+                ft.ControlState.FOCUSED: ft.OutlineInputBorder(
+                    border_radius=12,
+                    side=ft.BorderSide(width=2, color=ROSA),
+                ),
+            },
+        )
         kwargs.setdefault("label_style", ft.TextStyle(color=TEXTO_SECUNDARIO))
         return ft.Dropdown(**kwargs)
 
