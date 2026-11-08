@@ -11,6 +11,7 @@ from logo_dm import LOGO_DM_BASE64
 
 from database.banco import (
     CAMINHO_BANCO,
+    criar_backup_automatico,
     listar_precificacoes,
     listar_historico_precificacao_v2,
     obter_precificacao_v2,
@@ -66,6 +67,13 @@ from database.banco import (
 
 def main(page: ft.Page):
 
+    erro_backup_automatico = None
+
+    try:
+        criar_backup_automatico()
+    except Exception as erro:
+        erro_backup_automatico = str(erro)
+
     criar_tabelas()
 
     # ==================================================
@@ -105,6 +113,11 @@ def main(page: ft.Page):
             except Exception:
                 pass
 
+    if erro_backup_automatico:
+        mostrar_aviso(
+            f"Não foi possível criar o backup automático: {erro_backup_automatico}",
+            "#C62828"
+        )
 
 
     # ==================================================
