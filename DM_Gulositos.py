@@ -13,6 +13,7 @@ from database.banco import (
     obter_precificacao_v2,
     listar_ingredientes,
     listar_alertas_aumento_ingredientes,
+    listar_historico_precos_ingrediente,
     obter_ingrediente,
     salvar_precificacao_v2,
     excluir_precificacao_v2,
@@ -1163,6 +1164,138 @@ def main(page: ft.Page):
     # INGREDIENTES
     # ==================================================
 
+    def abrir_historico_precos_ingrediente(ingrediente_id, nome):
+        historico = listar_historico_precos_ingrediente(ingrediente_id)
+        cartoes_historico = []
+
+        for indice, item in enumerate(historico):
+            data = item["registrado_em"].replace("T", " ")
+            preco = item["preco_pago_centavos"] / 100
+            custo_unitario = item["custo_por_unidade_base"]
+
+            detalhes = [
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Text("Preço da embalagem", size=12, color=TEXTO_SECUNDARIO),
+                        ft.Text(f"R$ {preco:.2f}", weight=ft.FontWeight.BOLD, color=MARROM),
+                    ],
+                ),
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Text("Quantidade", size=12, color=TEXTO_SECUNDARIO),
+                        ft.Text(
+                            f'{item["quantidade_compra"]:g} {item["unidade_compra"]}',
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                    ],
+                ),
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Text(f'Custo por {item["unidade_base"]}', size=12, color=TEXTO_SECUNDARIO),
+                        ft.Text(f"R$ {custo_unitario:.5f}", weight=ft.FontWeight.BOLD, color=ROSA),
+                    ],
+                ),
+            ]
+
+            if indice + 1 < len(historico):
+                anterior = historico[indice + 1]
+                custo_anterior = float(anterior["custo_por_unidade_base"])
+                if anterior["unidade_base"] == item["unidade_base"] and custo_anterior > 0:
+                    variacao = ((float(custo_unitario) - custo_anterior) / custo_anterior) * 100
+                    if variacao > 0:
+                        texto_variacao = f"Aumento de {variacao:.1f}% em relação ao registro anterior"
+                        cor_variacao = "#C62828"
+                    elif variacao < 0:
+                        texto_variacao = f"Redução de {abs(variacao):.1f}% em relação ao registro anterior"
+                        cor_variacao = "#2E7D32"
+                    else:
+                        texto_variacao = "Sem alteração em relação ao registro anterior"
+                        cor_variacao = TEXTO_SECUNDARIO
+                    detalhes.append(
+                        ft.Text(texto_variacao, size=11, color=cor_variacao, weight=ft.FontWeight.BOLD)
+                    )
+
+            cartoes_historico.append(
+                ft.Container(
+                    bgcolor=BRANCO,
+                    padding=15,
+                    border_radius=14,
+                    content=ft.Column(
+                        spacing=8,
+                        controls=[
+                            ft.Text(data, size=11, color=TEXTO_SECUNDARIO),
+                            ft.Divider(color=ROSA_CLARO),
+                            *detalhes,
+                        ],
+                    ),
+                )
+            )
+
+        if not cartoes_historico:
+            cartoes_historico.append(
+                ft.Container(
+                    bgcolor=BRANCO,
+                    padding=18,
+                    border_radius=14,
+                    content=ft.Text(
+                        "Ainda não existem registros de preço para este insumo.",
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                )
+            )
+
+        tela = ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+            spacing=14,
+            controls=[
+                ft.Container(
+                    padding=ft.Padding.only(left=15, right=20, top=20, bottom=5),
+                    content=ft.Row(
+                        controls=[
+                            ft.Container(
+                                padding=8,
+                                border_radius=10,
+                                on_click=abrir_ingredientes,
+                                content=ft.Icon(ft.Icons.ARROW_BACK, color=MARROM, size=24),
+                            ),
+                            ft.Column(
+                                expand=True,
+                                spacing=2,
+                                controls=[
+                                    ft.Text("Histórico de preços", size=21, weight=ft.FontWeight.BOLD, color=MARROM),
+                                    ft.Text(nome, size=12, color=TEXTO_SECUNDARIO),
+                                ],
+                            ),
+                        ],
+                    ),
+                ),
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=18),
+                    content=ft.Column(
+                        spacing=10,
+                        controls=[
+                            ft.Text(
+                                f"{len(historico)} registro(s) encontrado(s)",
+                                size=12,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                            *cartoes_historico,
+                        ],
+                    ),
+                ),
+            ],
+        )
+
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
+        page.controls.clear()
+        page.add(tela)
+        page.update()
+
     def abrir_ingredientes(e=None):
 
         ingredientes = listar_ingredientes()
@@ -1418,6 +1551,13 @@ def main(page: ft.Page):
                                                 tooltip="Editar ingrediente",
                                                 on_click=lambda e, item_id=ingrediente_id:
                                                     abrir_edicao_ingrediente(item_id),
+                                            ),
+                                            ft.IconButton(
+                                                icon=ft.Icons.HISTORY,
+                                                icon_color=MARROM,
+                                                tooltip="Ver histórico de preços",
+                                                on_click=lambda e, item_id=ingrediente_id, nome=nome_ingrediente:
+                                                    abrir_historico_precos_ingrediente(item_id, nome),
                                             ),
                                             ft.IconButton(
                                                 icon=ft.Icons.DELETE_OUTLINE,
