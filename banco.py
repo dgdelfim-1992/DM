@@ -1,7 +1,7 @@
 import sqlite3
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 PASTA_PROJETO = Path(__file__).resolve().parent.parent
 CAMINHO_BANCO = PASTA_PROJETO / "database" / "dm_gulositos.db"
@@ -1434,6 +1434,7 @@ def criar_tabelas_orcamentos():
                 cliente TEXT,
                 status TEXT NOT NULL DEFAULT 'Em elaboração',
                 validade TEXT,
+                data_entrega TEXT,
                 desconto_tipo TEXT NOT NULL DEFAULT 'nenhum',
                 desconto_valor REAL NOT NULL DEFAULT 0,
                 modalidade TEXT NOT NULL DEFAULT 'pix',
@@ -1475,6 +1476,13 @@ def criar_tabelas_orcamentos():
             CREATE INDEX IF NOT EXISTS idx_orcamento_historico
             ON orcamento_historico(orcamento_id, registrado_em DESC);
         """)
+        colunas_orcamentos = {
+            coluna["name"]
+            for coluna in conexao.execute("PRAGMA table_info(orcamentos)").fetchall()
+        }
+        if "data_entrega" not in colunas_orcamentos:
+            conexao.execute("ALTER TABLE orcamentos ADD COLUMN data_entrega TEXT")
+
         conexao.commit()
     finally:
         conexao.close()
@@ -1487,13 +1495,14 @@ def salvar_orcamento(dados):
     try:
         cursor = conexao.execute("""
             INSERT INTO orcamentos (
-                numero, cliente, status, validade, desconto_tipo, desconto_valor,
+                numero, cliente, status, validade, data_entrega, desconto_tipo, desconto_valor,
                 modalidade, total_referencia_centavos, total_final_centavos,
                 itens_json, resumo_json, mensagem, criado_em, atualizado_em
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             dados["numero"], dados.get("cliente", ""), dados.get("status", "Em elaboração"),
-            dados.get("validade", ""), dados.get("desconto_tipo", "nenhum"),
+            dados.get("validade", ""), dados.get("data_entrega") or None,
+            dados.get("desconto_tipo", "nenhum"),
             float(dados.get("desconto_valor", 0)), dados.get("modalidade", "pix"),
             int(dados["total_referencia_centavos"]), int(dados["total_final_centavos"]),
             dados["itens_json"], dados["resumo_json"], dados["mensagem"], agora, agora
@@ -1541,12 +1550,13 @@ def atualizar_orcamento(orcamento_id, dados):
         ))
         conexao.execute("""
             UPDATE orcamentos
-            SET cliente=?, status='Em elaboração', validade=?, desconto_tipo=?, desconto_valor=?, modalidade=?,
+            SET cliente=?, status='Em elaboração', validade=?, data_entrega=?, desconto_tipo=?, desconto_valor=?, modalidade=?,
                 total_referencia_centavos=?, total_final_centavos=?, itens_json=?,
                 resumo_json=?, mensagem=?, atualizado_em=?
             WHERE id=?
         """, (
-            dados.get("cliente",""), dados.get("validade",""), dados.get("desconto_tipo","nenhum"),
+            dados.get("cliente",""), dados.get("validade",""), dados.get("data_entrega") or None,
+            dados.get("desconto_tipo","nenhum"),
             float(dados.get("desconto_valor",0)), dados.get("modalidade","pix"),
             int(dados["total_referencia_centavos"]), int(dados["total_final_centavos"]),
             dados["itens_json"], dados["resumo_json"], dados["mensagem"], agora, orcamento_id
@@ -1590,8 +1600,8 @@ def listar_orcamentos():
     conexao = obter_conexao()
     try:
         return conexao.execute("""
-            SELECT id, numero, cliente, status, validade,
-                   total_final_centavos, criado_em
+            SELECT id, numero, cliente, status, validade, data_entrega,
+                   total_final_centavos, criado_em, atualizado_em
             FROM orcamentos
             ORDER BY id DESC
         """).fetchall()
@@ -1646,5 +1656,77 @@ def excluir_orcamentos(orcamento_ids):
     except Exception:
         conexao.rollback()
         raise
+    finally:
+        conexao.close()
+
+
+def obter_dados_painel():
+    """Retorna indicadores e listas reais para a tela inicial, sem alterar registros."""
+    conexao = obter_conexao()
+    try:
+        contagens = {
+            row["status"]: row["quantidade"]
+            for row in conexao.execute("""
+                SELECT status, COUNT(*) AS quantidade
+                FROM orcamentos
+                GROUP BY status
+            """).fetchall()
+        }
+
+        hoje = date.today()
+        limite = hoje + timedelta(days=7)
+        entregas = conexao.execute("""
+            SELECT id, numero, cliente, status, data_entrega, total_final_centavos
+            FROM orcamentos
+            WHERE status = 'Aprovado'
+              AND data_entrega IS NOT NULL
+              AND TRIM(data_entrega) <> ''
+              AND data_entrega >= ?
+              AND data_entrega <= ?
+            ORDER BY data_entrega ASC, id ASC
+            LIMIT 6
+        """, (hoje.isoformat(), limite.isoformat())).fetchall()
+
+        atividades = conexao.execute("""
+            SELECT tipo, descricao, detalhe, data
+            FROM (
+                SELECT
+                    'Orçamento' AS tipo,
+                    COALESCE(NULLIF(cliente, ''), numero) AS descricao,
+                    status AS detalhe,
+                    atualizado_em AS data
+                FROM orcamentos
+
+                UNION ALL
+
+                SELECT
+                    'Insumo' AS tipo,
+                    nome AS descricao,
+                    'Preço registrado' AS detalhe,
+                    registrado_em AS data
+                FROM historico_precos_ingredientes
+
+                UNION ALL
+
+                SELECT
+                    'Precificação' AS tipo,
+                    nome_receita AS descricao,
+                    'Preço calculado' AS detalhe,
+                    registrado_em AS data
+                FROM historico_precificacao_v2
+            )
+            WHERE data IS NOT NULL AND TRIM(data) <> ''
+            ORDER BY data DESC
+            LIMIT 6
+        """).fetchall()
+
+        return {
+            "aguardando_retorno": contagens.get("Enviado", 0),
+            "aprovados": contagens.get("Aprovado", 0),
+            "em_elaboracao": contagens.get("Em elaboração", 0),
+            "entregas_proximos_7_dias": len(entregas),
+            "entregas": entregas,
+            "atividades": atividades,
+        }
     finally:
         conexao.close()
