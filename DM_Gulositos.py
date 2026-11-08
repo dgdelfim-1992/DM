@@ -542,11 +542,19 @@ def main(page: ft.Page):
             for registro in registros:
                 data_texto = formatar_data(registro["data_entrega"])
                 data_entrega_obj = obter_data_entrega(registro["data_entrega"])
+                status_atual = registro["status_producao"] or "Pendente"
                 atrasada = (
                     data_entrega_obj is not None
                     and data_entrega_obj < hoje
-                    and (registro["status_producao"] or "Pendente") != "Concluída"
+                    and status_atual != "Concluída"
                 )
+                entrega_hoje = (
+                    data_entrega_obj == hoje
+                    and status_atual != "Concluída"
+                )
+                cor_cartao = "#FDECEC" if atrasada else ("#FFF4E5" if entrega_hoje else BRANCO)
+                texto_data = "ATRASADA" if atrasada else ("ENTREGA HOJE" if entrega_hoje else data_texto)
+                cor_data = "#C62828" if atrasada else ( "#A65F00" if entrega_hoje else ROSA)
 
                 try:
                     itens = json.loads(registro["itens_json"] or "[]")
@@ -567,7 +575,7 @@ def main(page: ft.Page):
 
                 cartoes.append(
                     ft.Container(
-                        bgcolor=BRANCO,
+                        bgcolor=cor_cartao,
                         padding=15,
                         border_radius=16,
                         content=ft.Column(spacing=8, controls=[
@@ -576,8 +584,8 @@ def main(page: ft.Page):
                                 controls=[
                                     ft.Text(f'Encomenda {registro["numero"]}', weight=ft.FontWeight.BOLD, color=MARROM),
                                     ft.Text(
-                                        "ATRASADA" if atrasada else data_texto,
-                                        color="#C62828" if atrasada else ROSA,
+                                        texto_data,
+                                        color=cor_data,
                                         weight=ft.FontWeight.BOLD,
                                         size=12,
                                     ),
