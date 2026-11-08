@@ -4663,7 +4663,7 @@ def main(page: ft.Page):
                         border_radius=16,
                         alignment=ft.Alignment(0, 0),
                         content=ft.Image(
-                            src_base64=LOGO_DM_BASE64,
+                            src=LOGO_DM_BASE64,
                             width=74,
                             height=74,
                             fit=ft.BoxFit.CONTAIN,
