@@ -1254,6 +1254,35 @@ def obter_taxa_cartao():
     return obter_taxas_pagamento()["credito_avista"]
 
 
+def obter_markup_ideal():
+    """Retorna o markup ideal global; usa 100% como padrão inicial."""
+    conexao = obter_conexao()
+    try:
+        row = conexao.execute(
+            "SELECT valor FROM configuracoes WHERE chave = 'markup_ideal_pct'"
+        ).fetchone()
+        return float(row["valor"]) if row else 100.0
+    finally:
+        conexao.close()
+
+
+def salvar_markup_ideal(valor):
+    valor = float(valor)
+    if valor < 0 or valor >= 10000:
+        raise ValueError("O markup ideal deve estar entre 0% e 9999,99%.")
+    conexao = obter_conexao()
+    try:
+        conexao.execute(
+            """INSERT INTO configuracoes (chave, valor)
+               VALUES ('markup_ideal_pct', ?)
+               ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor""",
+            (str(valor),)
+        )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+
 def obter_margem_minima():
     """Retorna a margem mínima global; usa 20% como padrão inicial."""
     conexao = obter_conexao()
