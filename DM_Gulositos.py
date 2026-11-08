@@ -828,7 +828,6 @@ def main(page: ft.Page):
                 ids_orcamentos_selecionados.add(orcamento_id)
             else:
                 ids_orcamentos_selecionados.discard(orcamento_id)
-            montar_tela_historico()
 
         def executar_exclusao(dialogo, ids):
             fechar_dialogo(dialogo)
@@ -953,7 +952,7 @@ def main(page: ft.Page):
                 cabecalho_orcamentos("Histórico de orçamentos", abrir_orcamentos),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[
                     ft.Text("Selecione para excluir em lote", size=11, color=TEXTO_SECUNDARIO),
-                    ft.TextButton("Excluir selecionados", icon=ft.Icons.DELETE, disabled=not ids_orcamentos_selecionados, on_click=lambda ev: confirmar_exclusao_orcamentos(sorted(ids_orcamentos_selecionados))),
+                    ft.TextButton("Excluir selecionados", icon=ft.Icons.DELETE, on_click=lambda ev: confirmar_exclusao_orcamentos(sorted(ids_orcamentos_selecionados))),
                 ])),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Column(spacing=12, controls=cards)),
             ])
