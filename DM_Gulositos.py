@@ -456,6 +456,9 @@ def main(page: ft.Page):
     def abrir_agenda_producao(e=None):
         filtro = {"valor": "Todos"}
 
+        def formatar_reais(valor):
+            return ("R$ {:,.2f}".format(valor)).replace(",", "X").replace(".", ",").replace("X", ".")
+
         def formatar_data(valor):
             try:
                 return datetime.strptime(valor[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
