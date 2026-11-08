@@ -5,6 +5,7 @@ from pathlib import Path
 import flet as ft
 import os
 import shutil
+import json
 
 from database.banco import (
     CAMINHO_BANCO,
@@ -50,6 +51,10 @@ from database.banco import (
     excluir_custo_fixo,
     obter_fator_custo_fixo,
     obter_conexao,
+    salvar_orcamento,
+    listar_orcamentos,
+    obter_orcamento,
+    atualizar_status_orcamento,
 )
 
 
@@ -351,6 +356,8 @@ def main(page: ft.Page):
                             criar_atalho(ft.Icons.INVENTORY_2_OUTLINED, "Insumos", "Gerenciar estoque e preços", ROSA, abrir_ingredientes),
                             criar_atalho(ft.Icons.MENU_BOOK_OUTLINED, "Receitas", "Fichas técnicas e tempos", ROSA, abrir_receitas),
                             criar_atalho(ft.Icons.CALCULATE_OUTLINED, "Custos Fixos", "Despesas, rateio e taxas", ROSA, abrir_custos_fixos),
+                            criar_atalho(ft.Icons.DESCRIPTION_OUTLINED, "Orçamentos", "Criar propostas e compartilhar", ROSA, abrir_orcamentos),
+                            criar_atalho(ft.Icons.DESCRIPTION_OUTLINED, "Orçamentos", "Montar e enviar propostas", ROSA, abrir_orcamentos),
                             criar_atalho(ft.Icons.BAR_CHART_OUTLINED, "Relatórios", "Análise de lucratividade", ROSA, abrir_relatorios),
                             criar_atalho(ft.Icons.SAVE_OUTLINED, "Backup / Exportar", "Salvar e restaurar dados", ROSA, abrir_tela_backup),
                         ]
@@ -766,6 +773,374 @@ def main(page: ft.Page):
         navegacao.selected_index = 1
         page.controls.clear()
         page.add(tela)
+        page.update()
+
+    # ==================================================
+    # ORÇAMENTOS
+    # ==================================================
+    def abrir_orcamentos(e=None):
+        precificacoes = listar_precificacoes()
+        taxas = obter_taxas_pagamento()
+        margem_minima = obter_margem_minima()
+        modalidades = [
+            ("Dinheiro", "dinheiro"),
+            ("Pix", "pix"),
+            ("Cartão de débito", "debito"),
+            ("Crédito à vista", "credito_avista"),
+            ("Crédito parcelado", "credito_parcelado"),
+        ]
+        produtos = {}
+        for prec in precificacoes:
+            resultado = calcular_simulacao_precificacao(
+                prec["receita_id"],
+                prec["quantidade_embalagem"],
+                prec["custo_embalagem_centavos"],
+                prec["markup_ideal_pct"],
+                prec["preco_praticado_centavos"],
+                taxas.get("credito_avista", 0),
+                margem_minima,
+            )
+            if resultado:
+                preco_base = (
+                    resultado["preco_praticado"]
+                    if resultado["preco_praticado"] > 0
+                    else resultado["preco_sugerido"]
+                )
+                produtos[str(prec["id"])] = {
+                    "precificacao_id": prec["id"],
+                    "receita_id": prec["receita_id"],
+                    "nome": prec["nome_receita"],
+                    "unidade": prec["unidade_rendimento"] or "un",
+                    "quantidade_embalagem": float(prec["quantidade_embalagem"]),
+                    "custo": float(resultado["custo_total"]),
+                    "preco_base": float(preco_base),
+                }
+
+        def formatar_reais(valor):
+            return ("R$ {:,.2f}".format(valor)).replace(",", "X").replace(".", ",").replace("X", ".")
+
+        def montar_tela_historico():
+            registros = listar_orcamentos()
+            cards = []
+            for registro in registros:
+                total = registro["total_final_centavos"] / 100
+                cards.append(
+                    ft.Container(
+                        bgcolor=BRANCO, padding=14, border_radius=14,
+                        content=ft.Column(spacing=7, controls=[
+                            ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[
+                                ft.Text(f'Orçamento {registro["numero"]}', weight=ft.FontWeight.BOLD, color=MARROM),
+                                ft.Text(registro["status"], size=11, color=ROSA),
+                            ]),
+                            ft.Text(registro["cliente"] or "Cliente não informado", color=TEXTO_SECUNDARIO, size=12),
+                            ft.Text(f"Valor de referência: {formatar_reais(total)}", weight=ft.FontWeight.BOLD, color=MARROM),
+                            ft.Row(wrap=True, controls=[
+                                ft.TextButton("Abrir / copiar", on_click=lambda ev, oid=registro["id"]: abrir_detalhe_orcamento(oid)),
+                                ft.TextButton("Marcar enviado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Enviado")),
+                                ft.TextButton("Aprovado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Aprovado")),
+                                ft.TextButton("Recusado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Recusado")),
+                            ]),
+                        ])
+                    )
+                )
+            if not cards:
+                cards.append(ft.Text("Nenhum orçamento salvo ainda.", color=TEXTO_SECUNDARIO))
+            tela = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14, controls=[
+                cabecalho_orcamentos("Histórico de orçamentos", abrir_orcamentos),
+                ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Column(spacing=12, controls=cards)),
+            ])
+            page.controls.clear()
+            page.add(tela)
+            page.update()
+
+        def mudar_status_orcamento(orcamento_id, status):
+            atualizar_status_orcamento(orcamento_id, status)
+            mostrar_aviso(f"Orçamento atualizado: {status}.")
+            montar_tela_historico()
+
+        def abrir_detalhe_orcamento(orcamento_id):
+            registro = obter_orcamento(orcamento_id)
+            if not registro:
+                mostrar_aviso("Orçamento não encontrado.", "#C62828")
+                return
+            mensagem = registro["mensagem"]
+            texto = ft.TextField(value=mensagem, multiline=True, min_lines=12, max_lines=22, read_only=True)
+            dialogo = ft.AlertDialog(
+                modal=True,
+                title=ft.Text(f'Orçamento {registro["numero"]}'),
+                content=ft.Container(width=380, content=texto),
+                actions=[
+                    ft.TextButton("Fechar", on_click=lambda ev: fechar_dialogo(dialogo)),
+                    ft.TextButton("Copiar mensagem", on_click=lambda ev: copiar_mensagem(mensagem)),
+                ],
+            )
+            page.overlay.append(dialogo)
+            dialogo.open = True
+            page.update()
+
+        def fechar_dialogo(dialogo):
+            dialogo.open = False
+            page.update()
+
+        def copiar_mensagem(mensagem):
+            try:
+                page.set_clipboard(mensagem)
+                mostrar_aviso("Texto do orçamento copiado. Pode colar no WhatsApp.")
+            except Exception as erro:
+                mostrar_aviso(f"Não foi possível copiar automaticamente: {erro}", "#C62828")
+
+        def cabecalho_orcamentos(titulo, voltar):
+            return ft.Container(
+                padding=ft.Padding.only(left=15, right=18, top=18, bottom=8),
+                content=ft.Row(controls=[
+                    ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=MARROM, on_click=voltar),
+                    ft.Text(titulo, size=21, weight=ft.FontWeight.BOLD, color=MARROM),
+                ])
+            )
+
+        if not produtos:
+            mostrar_aviso("Cadastre e salve a precificação de pelo menos um Produto Final.", "#C62828")
+            return
+
+        cliente = ft.TextField(label="Nome do cliente (opcional)", border_radius=10)
+        validade = ft.TextField(label="Validade do orçamento (ex.: 7 dias)", value="7 dias", border_radius=10)
+        dd_produto = ft.Dropdown(
+            label="Produto precificado",
+            options=[ft.dropdown.Option(k, v["nome"]) for k, v in produtos.items()],
+            value=next(iter(produtos)),
+            border_radius=10,
+        )
+        quantidade = ft.TextField(label="Quantidade", value="1", keyboard_type=ft.KeyboardType.NUMBER, width=115, border_radius=10)
+        dd_tipo_desconto = ft.Dropdown(
+            label="Tipo de desconto",
+            value="percentual",
+            options=[
+                ft.dropdown.Option("percentual", "Percentual (%)"),
+                ft.dropdown.Option("valor", "Valor (R$)"),
+                ft.dropdown.Option("nenhum", "Sem desconto"),
+            ],
+            border_radius=10,
+            expand=True,
+        )
+        desconto = ft.TextField(label="Desconto", value="0", keyboard_type=ft.KeyboardType.NUMBER, width=115, border_radius=10)
+        lista_itens = []
+        lista_controle = ft.Column(spacing=8)
+        resumo_controle = ft.Column(spacing=8)
+        mensagem_preview = ft.TextField(label="Prévia da mensagem para o cliente", multiline=True, min_lines=10, max_lines=18, read_only=True)
+        aviso_margem = ft.Text("", size=12, weight=ft.FontWeight.BOLD)
+        numero_orcamento = f"ORC-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+        def adicionar_item(ev=None):
+            try:
+                produto = produtos[dd_produto.value]
+                qtd = float((quantidade.value or "0").replace(",", "."))
+                if qtd <= 0:
+                    raise ValueError("A quantidade deve ser maior que zero.")
+                lista_itens.append({**produto, "quantidade": qtd})
+                atualizar_orcamento()
+                mostrar_aviso(f'{produto["nome"]} adicionado ao orçamento.')
+            except Exception as erro:
+                mostrar_aviso(str(erro), "#C62828")
+
+        def remover_item(indice):
+            if 0 <= indice < len(lista_itens):
+                lista_itens.pop(indice)
+                atualizar_orcamento()
+
+        def calcular_totais():
+            total_base = sum(item["preco_base"] * item["quantidade"] for item in lista_itens)
+            total_custo = sum(item["custo"] * item["quantidade"] for item in lista_itens)
+            valor_desconto = float((desconto.value or "0").replace(",", "."))
+            if valor_desconto < 0:
+                raise ValueError("O desconto não pode ser negativo.")
+            if dd_tipo_desconto.value == "percentual":
+                if valor_desconto >= 100:
+                    raise ValueError("O desconto percentual deve ser menor que 100%.")
+                desconto_reais = total_base * valor_desconto / 100
+            elif dd_tipo_desconto.value == "valor":
+                desconto_reais = valor_desconto
+            else:
+                desconto_reais = 0
+            if desconto_reais > total_base:
+                raise ValueError("O desconto não pode superar o valor dos produtos.")
+            fator = ((total_base - desconto_reais) / total_base) if total_base > 0 else 1
+            totais = {}
+            for nome, chave in modalidades:
+                taxa = float(taxas.get(chave, 0)) / 100
+                if taxa < 0 or taxa >= 1:
+                    raise ValueError(f"Taxa inválida para {nome}.")
+                totais[chave] = (total_base * fator / (1 - taxa)) if lista_itens else 0
+            return total_base, total_custo, desconto_reais, fator, totais
+
+        def gerar_mensagem(totais, desconto_reais):
+            linhas = [
+                "✨ *DM GULOSITOS*",
+                "*ORÇAMENTO*",
+                "",
+                f"Olá, {cliente.value.strip() or 'tudo bem'}! Segue nossa proposta:",
+                "",
+            ]
+            for item in lista_itens:
+                linhas.append(
+                    f'• {item["nome"]} — {item["quantidade"]:g} {item["unidade"]}(s)'
+                )
+            linhas += ["", "*Valores por forma de pagamento:*"]
+            for nome, chave in modalidades:
+                linhas.append(f"• {nome}: {formatar_reais(totais[chave])}")
+            if desconto_reais > 0:
+                linhas += ["", f"Desconto aplicado: {formatar_reais(desconto_reais)}"]
+            linhas += [
+                "",
+                f"Validade: {validade.value.strip() or 'a combinar'}",
+                "",
+                "Será um prazer preparar seu pedido! 💗",
+                "DM Gulositos",
+            ]
+            return "\n".join(linhas)
+
+        def atualizar_orcamento(ev=None):
+            try:
+                total_base, total_custo, desconto_reais, fator, totais = calcular_totais()
+                lista_controle.controls.clear()
+                for indice, item in enumerate(lista_itens):
+                    lista_controle.controls.append(
+                        ft.Container(bgcolor=BRANCO, padding=10, border_radius=10, content=ft.Row(
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            controls=[
+                                ft.Column(expand=True, spacing=2, controls=[
+                                    ft.Text(item["nome"], weight=ft.FontWeight.BOLD, color=MARROM),
+                                    ft.Text(f'{item["quantidade"]:g} × {formatar_reais(item["preco_base"])}', size=11, color=TEXTO_SECUNDARIO),
+                                ]),
+                                ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color="#C62828", on_click=lambda ev, i=indice: remover_item(i)),
+                            ]
+                        ))
+                    )
+                resumo_controle.controls.clear()
+                for nome, chave in modalidades:
+                    taxa = float(taxas.get(chave, 0))
+                    total = totais[chave]
+                    liquido = total * (1 - taxa / 100)
+                    lucro = liquido - total_custo * fator
+                    margem = (lucro / total * 100) if total > 0 else 0
+                    dentro = margem >= margem_minima
+                    resumo_controle.controls.append(
+                        ft.Container(bgcolor=ROSA_CLARO, padding=10, border_radius=10, content=ft.Row(
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            controls=[
+                                ft.Column(expand=True, spacing=2, controls=[
+                                    ft.Text(nome, weight=ft.FontWeight.BOLD, color=MARROM),
+                                    ft.Text(f"Taxa: {taxa:.2f}%  •  Margem: {margem:.1f}%", size=11, color=TEXTO_SECUNDARIO),
+                                    ft.Text("Dentro da margem mínima" if dentro else "Abaixo da margem mínima", size=10, color="#2E7D32" if dentro else "#C62828),
+                                ]),
+                                ft.Text(formatar_reais(total), weight=ft.FontWeight.BOLD, color=MARROM),
+                            ]
+                        ))
+                    )
+                aviso_margem.value = (
+                    "Atenção: uma ou mais formas de pagamento ficam abaixo da margem mínima."
+                    if any(
+                        ((totais[chave] * (1 - float(taxas.get(chave, 0)) / 100) - total_custo * fator) / totais[chave] * 100 < margem_minima)
+                        for _, chave in modalidades if totais[chave] > 0
+                    ) else "Todas as formas de pagamento respeitam a margem mínima."
+                )
+                aviso_margem.color = "#C62828" if aviso_margem.value.startswith("Atenção") else "#2E7D32"
+                mensagem_preview.value = gerar_mensagem(totais, desconto_reais) if lista_itens else "Adicione produtos para montar a mensagem."
+                page.update()
+            except Exception as erro:
+                aviso_margem.value = str(erro)
+                aviso_margem.color = "#C62828"
+                page.update()
+
+        def salvar_e_copiar(ev=None):
+            try:
+                if not lista_itens:
+                    raise ValueError("Adicione pelo menos um produto ao orçamento.")
+                total_base, total_custo, desconto_reais, fator, totais = calcular_totais()
+                mensagem = gerar_mensagem(totais, desconto_reais)
+                total_final = totais["pix"]
+                itens_snapshot = []
+                for item in lista_itens:
+                    preco_final_base = item["preco_base"] * fator
+                    custo_final = item["custo"] * fator
+                    itens_snapshot.append({
+                        "receita_id": item["receita_id"],
+                        "nome": item["nome"],
+                        "quantidade": item["quantidade"],
+                        "unidade": item["unidade"],
+                        "custo_unitario_centavos": round(custo_final * 100),
+                        "preco_base_centavos": round(item["preco_base"] * 100),
+                        "preco_final_unitario_centavos": round(preco_final_base * 100),
+                        "subtotal_centavos": round(preco_final_base * item["quantidade"] * 100),
+                        "snapshot_json": json.dumps({
+                            "custo_original": item["custo"],
+                            "preco_base_original": item["preco_base"],
+                            "quantidade_embalagem": item["quantidade_embalagem"],
+                            "taxas": taxas,
+                            "margem_minima": margem_minima,
+                        }, ensure_ascii=False),
+                    })
+                resumo = {
+                    "totais_por_modalidade": totais,
+                    "taxas": taxas,
+                    "margem_minima": margem_minima,
+                    "custo_total": total_custo * fator,
+                    "desconto_reais": desconto_reais,
+                    "desconto_tipo": dd_tipo_desconto.value,
+                    "desconto_valor": float((desconto.value or "0").replace(",", ".")),
+                }
+                dados = {
+                    "numero": numero_orcamento,
+                    "cliente": cliente.value.strip(),
+                    "status": "Em elaboração",
+                    "validade": validade.value.strip(),
+                    "desconto_tipo": dd_tipo_desconto.value,
+                    "desconto_valor": resumo["desconto_valor"],
+                    "modalidade": "pix",
+                    "total_referencia_centavos": round(total_base * 100),
+                    "total_final_centavos": round(total_final * 100),
+                    "itens_json": json.dumps(itens_snapshot, ensure_ascii=False),
+                    "resumo_json": json.dumps(resumo, ensure_ascii=False),
+                    "mensagem": mensagem,
+                    "itens": itens_snapshot,
+                }
+                salvar_orcamento(dados)
+                page.set_clipboard(mensagem)
+                mostrar_aviso("Orçamento salvo e mensagem copiada para enviar.")
+                montar_tela_historico()
+            except Exception as erro:
+                mostrar_aviso(str(erro), "#C62828")
+
+        for controle in (dd_tipo_desconto, desconto):
+            controle.on_change = atualizar_orcamento
+
+        tela = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14, controls=[
+            cabecalho_orcamentos("Novo orçamento", abrir_menu_opcoes),
+            ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Column(spacing=12, controls=[
+                ft.Text("Dados do cliente", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
+                cliente, validade,
+                ft.Divider(color=ROSA_CLARO),
+                ft.Text("Adicionar produtos", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
+                dd_produto,
+                ft.Row(controls=[quantidade, ft.ElevatedButton("Adicionar", icon=ft.Icons.ADD, on_click=adicionar_item, bgcolor=ROSA, color=BRANCO)]),
+                lista_controle,
+                ft.Divider(color=ROSA_CLARO),
+                ft.Text("Desconto no orçamento", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
+                ft.Row(controls=[dd_tipo_desconto, desconto]),
+                ft.Text("Preços calculados por modalidade", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
+                ft.Text(f"Margem mínima configurada: {margem_minima:.1f}%", size=11, color=TEXTO_SECUNDARIO),
+                resumo_controle,
+                aviso_margem,
+                ft.Text("Mensagem pronta para compartilhar", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
+                mensagem_preview,
+                ft.ElevatedButton("Salvar orçamento e copiar mensagem", icon=ft.Icons.CONTENT_COPY, on_click=salvar_e_copiar, bgcolor=ROSA, color=BRANCO, expand=True),
+                ft.OutlinedButton("Ver histórico de orçamentos", icon=ft.Icons.HISTORY, on_click=lambda ev: montar_tela_historico()),
+            ])),
+        ])
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
+        page.controls.clear()
+        page.add(tela)
+        atualizar_orcamento()
         page.update()
 
     def abrir_edicao_precificacao(precificacao_id=None):
@@ -4138,6 +4513,13 @@ def main(page: ft.Page):
                         "Preço de venda dos produtos",
                         ROSA,
                         abrir_precificacao,
+                    ),
+                    criar_atalho(
+                        ft.Icons.DESCRIPTION_OUTLINED,
+                        "Orçamentos",
+                        "Propostas para clientes",
+                        ROSA,
+                        abrir_orcamentos,
                     ),
                     criar_atalho(
                         ft.Icons.BAR_CHART_OUTLINED,
