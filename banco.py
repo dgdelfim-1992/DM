@@ -19,6 +19,7 @@ def obter_conexao():
 # CRIAÇÃO E ATUALIZAÇÃO DAS TABELAS
 # =========================================================
 def criar_tabelas():
+    criar_tabela_precificacao_v2()
     conexao = obter_conexao()
     try:
         conexao.executescript("""
@@ -670,3 +671,295 @@ def salvar_precificacao_completa(receita_id, quantidade_venda, embalagem_id, qua
         raise
     finally:
         con.close()
+
+
+
+def criar_tabela_precificacao_v2():
+    conexao = obter_conexao()
+    try:
+        conexao.execute("""
+            CREATE TABLE IF NOT EXISTS precificacao_v2 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                receita_id INTEGER NOT NULL,
+                quantidade_embalagem REAL NOT NULL,
+                custo_embalagem_centavos INTEGER NOT NULL,
+                markup_ideal_pct REAL NOT NULL,
+                preco_praticado_centavos INTEGER NOT NULL,
+                FOREIGN KEY (receita_id) REFERENCES receitas(id)
+            )
+        """)
+
+        # Histórico exclusivo da precificação atual
+        conexao.execute("""
+            CREATE TABLE IF NOT EXISTS historico_precificacao_v2 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                precificacao_id INTEGER NOT NULL,
+                receita_id INTEGER NOT NULL,
+                nome_receita TEXT NOT NULL,
+                quantidade_embalagem REAL NOT NULL,
+                custo_embalagem_centavos INTEGER NOT NULL,
+                taxa_cartao_pct REAL NOT NULL,
+                markup_ideal_pct REAL NOT NULL,
+                custo_insumo_centavos INTEGER NOT NULL,
+                custo_fixo_centavos INTEGER NOT NULL,
+                custo_total_centavos INTEGER NOT NULL,
+                preco_sugerido_centavos INTEGER NOT NULL,
+                preco_praticado_centavos INTEGER NOT NULL,
+                markup_aplicado_pct REAL NOT NULL,
+                margem_contribuicao_centavos INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                registrado_em TEXT NOT NULL,
+                FOREIGN KEY (precificacao_id)
+                    REFERENCES precificacao_v2(id) ON DELETE CASCADE,
+                FOREIGN KEY (receita_id)
+                    REFERENCES receitas(id)
+            )
+        """)
+
+        conexao.execute("""
+            CREATE INDEX IF NOT EXISTS idx_historico_precificacao_v2
+            ON historico_precificacao_v2(precificacao_id)
+        """)
+
+        conexao.commit()
+
+    finally:
+        conexao.close()
+
+def listar_precificacoes():
+    conexao = obter_conexao()
+    try:
+        return conexao.execute('''
+            SELECT p.*, r.nome as nome_receita, r.rendimento_unidades, r.unidade_rendimento
+            FROM precificacao_v2 p
+            JOIN receitas r ON p.receita_id = r.id
+            WHERE r.ativo = 1
+            ORDER BY r.nome
+        ''').fetchall()
+    finally:
+        conexao.close()
+
+def obter_precificacao_v2(precificacao_id):
+    conexao = obter_conexao()
+    try:
+        return conexao.execute('SELECT * FROM precificacao_v2 WHERE id = ?', (precificacao_id,)).fetchone()
+    finally:
+        conexao.close()
+
+
+def salvar_precificacao_v2(
+    id,
+    receita_id,
+    quantidade_embalagem,
+    custo_embalagem_centavos,
+    markup_ideal_pct,
+    preco_praticado_centavos
+):
+    conexao = obter_conexao()
+
+    try:
+        taxa_cartao = obter_taxa_cartao()
+
+        if id:
+            conexao.execute("""
+                UPDATE precificacao_v2
+                SET receita_id = ?,
+                    quantidade_embalagem = ?,
+                    custo_embalagem_centavos = ?,
+                    markup_ideal_pct = ?,
+                    preco_praticado_centavos = ?
+                WHERE id = ?
+            """, (
+                receita_id,
+                quantidade_embalagem,
+                custo_embalagem_centavos,
+                markup_ideal_pct,
+                preco_praticado_centavos,
+                id
+            ))
+
+            precificacao_id = id
+
+        else:
+            cursor = conexao.execute("""
+                INSERT INTO precificacao_v2 (
+                    receita_id,
+                    quantidade_embalagem,
+                    custo_embalagem_centavos,
+                    markup_ideal_pct,
+                    preco_praticado_centavos
+                )
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                receita_id,
+                quantidade_embalagem,
+                custo_embalagem_centavos,
+                markup_ideal_pct,
+                preco_praticado_centavos
+            ))
+
+            precificacao_id = cursor.lastrowid
+
+        receita = conexao.execute("""
+            SELECT nome
+            FROM receitas
+            WHERE id = ?
+        """, (receita_id,)).fetchone()
+
+        if not receita:
+            raise ValueError("Produto não encontrado.")
+
+        resultado = calcular_simulacao_precificacao(
+            receita_id,
+            quantidade_embalagem,
+            custo_embalagem_centavos,
+            markup_ideal_pct,
+            preco_praticado_centavos,
+            taxa_cartao
+        )
+
+        if not resultado:
+            raise ValueError("Não foi possível calcular a precificação.")
+
+        registrado_em = datetime.now().isoformat(timespec="seconds")
+
+        conexao.execute("""
+            INSERT INTO historico_precificacao_v2 (
+                precificacao_id,
+                receita_id,
+                nome_receita,
+                quantidade_embalagem,
+                custo_embalagem_centavos,
+                taxa_cartao_pct,
+                markup_ideal_pct,
+                custo_insumo_centavos,
+                custo_fixo_centavos,
+                custo_total_centavos,
+                preco_sugerido_centavos,
+                preco_praticado_centavos,
+                markup_aplicado_pct,
+                margem_contribuicao_centavos,
+                status,
+                registrado_em
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            precificacao_id,
+            receita_id,
+            receita["nome"],
+            quantidade_embalagem,
+            custo_embalagem_centavos,
+            taxa_cartao,
+            markup_ideal_pct,
+            round(resultado["custo_insumo"] * 100),
+            round(resultado["custo_fixo"] * 100),
+            round(resultado["custo_total"] * 100),
+            round(resultado["preco_sugerido"] * 100),
+            preco_praticado_centavos,
+            resultado["markup_aplicado_pct"],
+            round(resultado["margem_contribuicao"] * 100),
+            resultado["status"],
+            registrado_em
+        ))
+
+        conexao.commit()
+        return precificacao_id
+
+    except Exception:
+        conexao.rollback()
+        raise
+
+    finally:
+        conexao.close()
+
+def excluir_precificacao_v2(id):
+    conexao = obter_conexao()
+    try:
+        conexao.execute('DELETE FROM precificacao_v2 WHERE id = ?', (id,))
+        conexao.commit()
+    finally:
+        conexao.close()
+
+def obter_taxa_cartao():
+    conexao = obter_conexao()
+    try:
+        row = conexao.execute("SELECT valor FROM configuracoes WHERE chave = 'taxa_cartao'").fetchone()
+        return float(row['valor']) if row else 0.0
+    finally:
+        conexao.close()
+
+def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_embalagem_centavos, markup_ideal_pct, preco_praticado_centavos, taxa_cartao_pct):
+    # 1. Custo Base Insumos
+    custo_base = calcular_custo_receita(receita_id)
+    if not custo_base:
+        return None
+        
+    conexao = obter_conexao()
+    try:
+        receita = conexao.execute('SELECT * FROM receitas WHERE id = ?', (receita_id,)).fetchone()
+    finally:
+        conexao.close()
+        
+    rendimento_receita = receita['rendimento_unidades'] or 1.0
+    
+    # Custo insumo proporcional à quantidade na embalagem
+    fator_proporcao = quantidade_embalagem / rendimento_receita
+    custo_insumo = custo_base['custo_insumos'] * fator_proporcao
+    
+    # 2. Custo Fixo Proporcional
+    tempo_total_minutos = (receita['tempo_preparo_min'] or 0) + (receita['tempo_batedeira_min'] or 0) + (receita['tempo_forno_min'] or 0)
+    custo_fixo_hora = obter_custo_fixo_por_hora()
+    custo_fixo_receita_inteira = (tempo_total_minutos / 60.0) * custo_fixo_hora
+    custo_fixo = custo_fixo_receita_inteira * fator_proporcao
+    
+    # 3. Custo Embalagem
+    custo_embalagem = custo_embalagem_centavos / 100.0
+    
+    # 4. Custo Total
+    custo_total = custo_insumo + custo_fixo + custo_embalagem
+    
+    # 5. Preço Sugerido (com markup e taxas)
+    # Preco com Markup = Custo Total * (1 + Markup_Ideal/100)
+    preco_com_markup = custo_total * (1 + (markup_ideal_pct / 100.0))
+    # Preco Sugerido = Preco com Markup / (1 - Taxa/100)
+    fator_taxa = 1 - (taxa_cartao_pct / 100.0)
+    preco_sugerido = preco_com_markup / fator_taxa if fator_taxa > 0 else 0
+    
+    # 6. Analise do Preço Praticado
+    preco_praticado = preco_praticado_centavos / 100.0
+    
+    # Markup Aplicado = (Preço Praticado - Custo Total) / Custo Total
+    markup_aplicado_pct = ((preco_praticado - custo_total) / custo_total * 100.0) if custo_total > 0 else 0
+    
+    # Margem de Contribuição = Preço Praticado - Custo Total - (Preço Praticado * Taxa Cartão)
+    imposto_cartao = preco_praticado * (taxa_cartao_pct / 100.0)
+    margem_contribuicao = preco_praticado - custo_total - imposto_cartao
+    
+    status = "Dentro da Margem" if markup_aplicado_pct >= markup_ideal_pct else "Ajustar"
+    
+    return {
+        "custo_insumo": custo_insumo,
+        "custo_fixo": custo_fixo,
+        "custo_embalagem": custo_embalagem,
+        "custo_total": custo_total,
+        "preco_sugerido": preco_sugerido,
+        "preco_praticado": preco_praticado,
+        "markup_aplicado_pct": markup_aplicado_pct,
+        "margem_contribuicao": margem_contribuicao,
+        "status": status
+    }
+
+
+def listar_historico_precificacao_v2(precificacao_id):
+    conexao = obter_conexao()
+
+    try:
+        return conexao.execute("""
+            SELECT *
+            FROM historico_precificacao_v2
+            WHERE precificacao_id = ?
+            ORDER BY registrado_em DESC, id DESC
+        """, (precificacao_id,)).fetchall()
+
+    finally:
+        conexao.close()
