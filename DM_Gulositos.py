@@ -356,7 +356,6 @@ def main(page: ft.Page):
                             criar_atalho(ft.Icons.INVENTORY_2_OUTLINED, "Insumos", "Gerenciar estoque e preços", ROSA, abrir_ingredientes),
                             criar_atalho(ft.Icons.MENU_BOOK_OUTLINED, "Receitas", "Fichas técnicas e tempos", ROSA, abrir_receitas),
                             criar_atalho(ft.Icons.CALCULATE_OUTLINED, "Custos Fixos", "Despesas, rateio e taxas", ROSA, abrir_custos_fixos),
-                            criar_atalho(ft.Icons.DESCRIPTION_OUTLINED, "Orçamentos", "Criar propostas e compartilhar", ROSA, abrir_orcamentos),
                             criar_atalho(ft.Icons.DESCRIPTION_OUTLINED, "Orçamentos", "Montar e enviar propostas", ROSA, abrir_orcamentos),
                             criar_atalho(ft.Icons.BAR_CHART_OUTLINED, "Relatórios", "Análise de lucratividade", ROSA, abrir_relatorios),
                             criar_atalho(ft.Icons.SAVE_OUTLINED, "Backup / Exportar", "Salvar e restaurar dados", ROSA, abrir_tela_backup),
@@ -833,7 +832,7 @@ def main(page: ft.Page):
                                 ft.Text(registro["status"], size=11, color=ROSA),
                             ]),
                             ft.Text(registro["cliente"] or "Cliente não informado", color=TEXTO_SECUNDARIO, size=12),
-                            ft.Text(f"Valor de referência: {formatar_reais(total)}", weight=ft.FontWeight.BOLD, color=MARROM),
+                            ft.Text(f"Total do orçamento (Pix): {formatar_reais(total)}", weight=ft.FontWeight.BOLD, color=MARROM),
                             ft.Row(wrap=True, controls=[
                                 ft.TextButton("Abrir / copiar", on_click=lambda ev, oid=registro["id"]: abrir_detalhe_orcamento(oid)),
                                 ft.TextButton("Marcar enviado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Enviado")),
