@@ -322,8 +322,10 @@ def main(page: ft.Page):
     # ==================================================
 
     def voltar_inicio(e=None):
+        nonlocal conteudo
         indice_atual["valor"] = 0
         navegacao.selected_index = 0
+        conteudo = montar_painel_inicial()
         page.controls.clear()
         page.add(conteudo)
         page.update()
@@ -4672,7 +4674,7 @@ def main(page: ft.Page):
                         spacing=4,
                         controls=[
                             ft.Text(f"{saudacao}!", size=21, weight=ft.FontWeight.BOLD, color=MARROM),
-                            ft.Text("Bem-vinda ao painel de gestão", size=12, color=TEXTO_SECUNDARIO),
+                            ft.Text("Painel de gestão da doceria", size=12, color=TEXTO_SECUNDARIO),
                             ft.Text(agora.strftime("%d/%m/%Y"), size=11, color=ROSA, weight=ft.FontWeight.BOLD),
                         ],
                     ),
@@ -4687,7 +4689,7 @@ def main(page: ft.Page):
                     spacing=10,
                     controls=[
                         criar_card_painel(
-                            ft.Icons.MAIL_OUTLINE,
+                            ft.Icons.SEND,
                             painel["aguardando_retorno"],
                             "Aguardando retorno",
                             "Orçamentos enviados",
