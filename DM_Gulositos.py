@@ -2433,8 +2433,9 @@ def main(page: ft.Page):
             cartoes.append(
                 ft.Container(
                     bgcolor=BRANCO,
-                    padding=16,
-                    border_radius=16,
+                    padding=18,
+                    border=ft.border.all(1, ROSA_CLARO),
+                    border_radius=18,
                     on_click=lambda e, item_id=ingrediente_id:
                         abrir_edicao_ingrediente(item_id),
                     content=ft.Column(
@@ -3104,10 +3105,11 @@ def main(page: ft.Page):
             cartoes.append(
                 ft.Container(
                     bgcolor=BRANCO,
-                    padding=16,
-                    border_radius=16,
+                    padding=18,
+                    border=ft.border.all(1, ROSA_CLARO),
+                    border_radius=18,
                     content=ft.Column(
-                        spacing=8,
+                        spacing=10,
                         controls=[
                             ft.Row(
                                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
