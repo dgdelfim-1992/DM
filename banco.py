@@ -6,6 +6,62 @@ from datetime import datetime, date, timedelta
 PASTA_PROJETO = Path(__file__).resolve().parent.parent
 CAMINHO_BANCO = PASTA_PROJETO / "database" / "dm_gulositos.db"
 
+
+def criar_backup_automatico(limite=15):
+    """
+    Cria no máximo um backup automático por dia.
+    Mantém somente os backups automáticos mais recentes.
+    Não altera nem substitui o banco principal.
+    """
+    if not CAMINHO_BANCO.exists() or CAMINHO_BANCO.stat().st_size == 0:
+        return None
+
+    pasta_backups = CAMINHO_BANCO.parent / "backups"
+    pasta_backups.mkdir(parents=True, exist_ok=True)
+
+    hoje = datetime.now().strftime("%Y%m%d")
+    backups_hoje = sorted(pasta_backups.glob(f"automatico_{hoje}_*.db"))
+
+    if backups_hoje:
+        return backups_hoje[-1]
+
+    nome = datetime.now().strftime("automatico_%Y%m%d_%H%M%S.db")
+    destino = pasta_backups / nome
+
+    origem_conexao = sqlite3.connect(str(CAMINHO_BANCO))
+    destino_conexao = sqlite3.connect(str(destino))
+
+    try:
+        origem_conexao.backup(destino_conexao)
+        resultado = destino_conexao.execute("PRAGMA integrity_check").fetchone()
+
+        if not resultado or resultado[0] != "ok":
+            raise RuntimeError("A verificação de integridade do backup falhou.")
+
+        destino_conexao.commit()
+    except Exception:
+        destino_conexao.close()
+        origem_conexao.close()
+        if destino.exists():
+            destino.unlink()
+        raise
+    else:
+        destino_conexao.close()
+        origem_conexao.close()
+
+    backups = sorted(
+        pasta_backups.glob("automatico_*.db"),
+        key=lambda arquivo: arquivo.stat().st_mtime,
+        reverse=True
+    )
+
+    for backup_antigo in backups[limite:]:
+        backup_antigo.unlink()
+
+    return destino
+
+
+
 # =========================================================
 # CONEXÃO COM O BANCO
 # =========================================================
