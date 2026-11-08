@@ -123,6 +123,24 @@ def main(page: ft.Page):
     # ==================================================
     # COMPONENTES VISUAIS PADRONIZADOS
     # ==================================================
+    def criar_campo_padrao(**kwargs):
+        kwargs.setdefault("border_radius", 12)
+        kwargs.setdefault("border_color", ROSA_CLARO)
+        kwargs.setdefault("focused_border_color", ROSA)
+        kwargs.setdefault("cursor_color", ROSA)
+        return ft.TextField(**kwargs)
+
+    def criar_dropdown_padrao(**kwargs):
+        kwargs.setdefault("border_radius", 12)
+        kwargs.setdefault("border_color", ROSA_CLARO)
+        kwargs.setdefault("focused_border_color", ROSA)
+        return ft.Dropdown(**kwargs)
+
+    def criar_dialogo_padrao(*args, **kwargs):
+        kwargs.setdefault("bgcolor", BRANCO)
+        kwargs.setdefault("shape", ft.RoundedRectangleBorder(radius=18))
+        return ft.AlertDialog(*args, **kwargs)
+
 
     def criar_cabecalho_padrao(titulo, subtitulo, acao_voltar):
         return ft.Container(
