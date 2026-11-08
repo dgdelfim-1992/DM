@@ -1,7 +1,20 @@
+import sqlite3
+import tempfile
+from datetime import datetime
+from pathlib import Path
 import flet as ft
-from tela_precificacao import criar_tela_precificacao
+import os
+import shutil
 
 from database.banco import (
+    CAMINHO_BANCO,
+    listar_precificacoes,
+    listar_historico_precificacao_v2,
+    obter_precificacao_v2,
+    salvar_precificacao_v2,
+    excluir_precificacao_v2,
+    obter_taxa_cartao,
+    calcular_simulacao_precificacao,
     criar_tabelas,
     salvar_tempos_receita,
     salvar_horas_produtivas_mensais,
@@ -54,6 +67,235 @@ def main(page: ft.Page):
     indice_atual = {"valor": 0}
 
     # ==================================================
+    # UTILITÁRIO SEGURO DE SNACKBAR
+    # ==================================================
+    def mostrar_aviso(mensagem, cor="#2E7D32"):
+        snack = ft.SnackBar(content=ft.Text(mensagem, color=BRANCO), bgcolor=cor)
+        try:
+            page.overlay.append(snack)
+            snack.open = True
+            page.update()
+        except Exception:
+            try:
+                page.snack_bar = snack
+                page.snack_bar.open = True
+                page.update()
+            except Exception:
+                pass
+
+
+
+    # ==================================================
+    # BACKUP E RESTAURAÇÃO SEGURA DO BANCO
+    # ==================================================
+
+    def criar_copia_sqlite(origem, destino):
+        """Cria uma cópia consistente usando o próprio SQLite."""
+
+        origem = Path(origem)
+        destino = Path(destino)
+
+        destino.parent.mkdir(parents=True, exist_ok=True)
+
+        conexao_origem = sqlite3.connect(str(origem))
+        conexao_destino = sqlite3.connect(str(destino))
+
+        try:
+            conexao_origem.backup(conexao_destino)
+            conexao_destino.commit()
+        finally:
+            conexao_destino.close()
+            conexao_origem.close()
+
+    def gerar_backup_bytes():
+        """Gera o arquivo de backup para exportação."""
+
+        if not CAMINHO_BANCO.exists():
+            raise FileNotFoundError("Banco de dados não encontrado.")
+
+        with tempfile.TemporaryDirectory() as pasta:
+            arquivo_temp = Path(pasta) / "backup_gulositos.db"
+
+            criar_copia_sqlite(CAMINHO_BANCO, arquivo_temp)
+
+            return arquivo_temp.read_bytes()
+
+    def validar_banco(caminho):
+        """Verifica se o arquivo é um banco SQLite íntegro."""
+
+        conexao = sqlite3.connect(
+            f"file:{Path(caminho).resolve().as_posix()}?mode=ro",
+            uri=True
+        )
+
+        try:
+            resultado = conexao.execute(
+                "PRAGMA integrity_check"
+            ).fetchone()
+
+            if not resultado or resultado[0] != "ok":
+                raise ValueError("O banco está corrompido.")
+
+            tabelas = {
+                linha[0]
+                for linha in conexao.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+
+            obrigatorias = {
+                "ingredientes",
+                "receitas",
+                "configuracoes"
+            }
+
+            if not obrigatorias.issubset(tabelas):
+                raise ValueError(
+                    "O arquivo selecionado não pertence à DM Gulositos."
+                )
+
+        finally:
+            conexao.close()
+
+    def restaurar_banco_bytes(conteudo):
+        """Valida, protege o banco atual e restaura o selecionado."""
+
+        if not conteudo:
+            raise ValueError("O arquivo selecionado está vazio.")
+
+        CAMINHO_BANCO.parent.mkdir(parents=True, exist_ok=True)
+
+        arquivo_temp = None
+
+        try:
+            # 1. Salva o arquivo selecionado temporariamente
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                suffix=".db",
+                prefix="restauracao_",
+                dir=CAMINHO_BANCO.parent,
+                delete=False
+            ) as arquivo:
+
+                arquivo.write(conteudo)
+                arquivo_temp = Path(arquivo.name)
+
+            # 2. Valida o backup antes de mexer no banco atual
+            validar_banco(arquivo_temp)
+
+            # 3. Finaliza eventuais operações pendentes do banco atual
+            if CAMINHO_BANCO.exists():
+
+                conexao = sqlite3.connect(str(CAMINHO_BANCO))
+
+                try:
+                    conexao.execute(
+                        "PRAGMA wal_checkpoint(TRUNCATE)"
+                    )
+                finally:
+                    conexao.close()
+
+                # 4. Cria uma cópia automática de segurança
+                pasta_backups = CAMINHO_BANCO.parent / "backups"
+                pasta_backups.mkdir(parents=True, exist_ok=True)
+
+                data = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                backup_atual = (
+                    pasta_backups /
+                    f"antes_restauracao_{data}.db"
+                )
+
+                criar_copia_sqlite(
+                    CAMINHO_BANCO,
+                    backup_atual
+                )
+
+                # 5. Remove arquivos auxiliares do banco anterior
+                for sufixo in ("-wal", "-shm"):
+                    auxiliar = Path(str(CAMINHO_BANCO) + sufixo)
+
+                    if auxiliar.exists():
+                        auxiliar.unlink()
+
+            # 6. Substitui o banco somente depois de validar
+            os.replace(arquivo_temp, CAMINHO_BANCO)
+            arquivo_temp = None
+
+        finally:
+            if arquivo_temp and arquivo_temp.exists():
+                arquivo_temp.unlink()
+
+    # ==================================================
+    # FILE PICKER - COMPATÍVEL COM FLET 1.0+
+    # ==================================================
+
+    picker_salvar = ft.FilePicker()
+    picker_restaurar = ft.FilePicker()
+
+    page.services.append(picker_salvar)
+    page.services.append(picker_restaurar)
+
+    async def acionar_exportar(e):
+        try:
+            # Gera uma cópia consistente do banco
+            dados_backup = gerar_backup_bytes()
+
+            # Abre o salvamento nativo
+            caminho = await picker_salvar.save_file(
+                dialog_title="Salvar Backup DM Gulositos",
+                file_name="backup_gulositos.db",
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["db"],
+                src_bytes=dados_backup
+            )
+
+            if caminho is not None or page.web:
+                mostrar_aviso(
+                    "Backup exportado com sucesso!",
+                    "#2E7D32"
+                )
+
+        except Exception as erro:
+            mostrar_aviso(
+                f"Erro ao exportar backup: {erro}",
+                "#C62828"
+            )
+
+    async def acionar_importar(e):
+        try:
+            arquivos = await picker_restaurar.pick_files(
+                dialog_title="Selecionar Backup DM Gulositos",
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["db"],
+                allow_multiple=False,
+                with_data=True
+            )
+
+            if not arquivos:
+                return
+
+            arquivo = arquivos[0]
+
+            if not arquivo.bytes:
+                raise ValueError(
+                    "Não foi possível ler o conteúdo do arquivo."
+                )
+
+            restaurar_banco_bytes(arquivo.bytes)
+
+            mostrar_aviso(
+                "Backup restaurado! Feche e abra novamente o aplicativo.",
+                "#2E7D32"
+            )
+
+        except Exception as erro:
+            mostrar_aviso(
+                f"Erro ao restaurar backup: {erro}",
+                "#C62828"
+            )
+
+    # ==================================================
     # NAVEGAÇÃO
     # ==================================================
 
@@ -70,18 +312,622 @@ def main(page: ft.Page):
         if indice == 0:
             voltar_inicio()
         elif indice == 1:
-            abrir_ingredientes()
-        elif indice == 2:
-            abrir_receitas()
-        elif indice == 3:
-            abrir_custos_fixos()
-        elif indice == 4:
             abrir_precificacao()
-        elif indice == 5:
-            abrir_relatorios()
+        elif indice == 2:
+            abrir_menu_opcoes()
         else:
             navegacao.selected_index = indice_atual["valor"]
             page.update()
+
+    # ==================================================
+    # MENU DE OPÇÕES (SUBSTITUI A BARRA INFERIOR ANTIGA)
+    # ==================================================
+
+    def abrir_menu_opcoes(e=None):
+        tela = ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+            spacing=16,
+            controls=[
+                ft.Container(
+                    padding=ft.Padding.only(left=15, right=20, top=20, bottom=10),
+                    content=ft.Text("Menu Principal", size=24, weight=ft.FontWeight.BOLD, color=MARROM),
+                ),
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=18),
+                    content=ft.Column(
+                        spacing=12,
+                        controls=[
+                            criar_atalho(ft.Icons.INVENTORY_2_OUTLINED, "Insumos", "Gerenciar estoque e preços", ROSA, abrir_ingredientes),
+                            criar_atalho(ft.Icons.MENU_BOOK_OUTLINED, "Receitas", "Fichas técnicas e tempos", ROSA, abrir_receitas),
+                            criar_atalho(ft.Icons.CALCULATE_OUTLINED, "Custos Fixos", "Despesas, rateio e taxas", ROSA, abrir_custos_fixos),
+                            criar_atalho(ft.Icons.BAR_CHART_OUTLINED, "Relatórios", "Análise de lucratividade", ROSA, abrir_relatorios),
+                            criar_atalho(ft.Icons.SAVE_OUTLINED, "Backup / Exportar", "Salvar e restaurar dados", ROSA, abrir_tela_backup),
+                        ]
+                    )
+                )
+            ]
+        )
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
+        page.controls.clear()
+        page.add(tela)
+        page.update()
+
+    # ==================================================
+    # TELA DE BACKUP
+    # ==================================================
+
+    def abrir_tela_backup(e=None):
+        tela = ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+            spacing=16,
+            controls=[
+                ft.Container(
+                    padding=ft.Padding.only(left=15, right=20, top=20, bottom=10),
+                    content=ft.Row(
+                        controls=[
+                            ft.Container(
+                                padding=8,
+                                border_radius=10,
+                                on_click=abrir_menu_opcoes,
+                                content=ft.Icon(ft.Icons.ARROW_BACK, color=MARROM, size=24),
+                            ),
+                            ft.Text("Backup e Restauração", size=22, weight=ft.FontWeight.BOLD, color=MARROM),
+                        ]
+                    )
+                ),
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=18),
+                    content=ft.Column(
+                        spacing=16,
+                        controls=[
+                            ft.Text(
+                                "Mantenha seus dados seguros. Faça cópias regulares e guarde na nuvem (Google Drive, OneDrive).",
+                                color=TEXTO_SECUNDARIO,
+                                size=13
+                            ),
+                            # Botão de Exportar
+                            ft.Container(
+                                bgcolor=BRANCO,
+                                padding=20,
+                                border_radius=16,
+                                on_click=acionar_exportar,
+                                content=ft.Row(
+                                    controls=[
+                                        ft.Icon(ft.Icons.DOWNLOAD_FOR_OFFLINE, color=ROSA, size=40),
+                                        ft.Column(
+                                            spacing=2,
+                                            controls=[
+                                                ft.Text("Fazer Backup (Exportar)", weight=ft.FontWeight.BOLD, color=MARROM, size=16),
+                                                ft.Text("Salva uma cópia dos dados no PC", color=TEXTO_SECUNDARIO, size=12)
+                                            ]
+                                        )
+                                    ]
+                                )
+                            ),
+                            # Botão de Importar
+                            ft.Container(
+                                bgcolor=BRANCO,
+                                padding=20,
+                                border_radius=16,
+                                on_click=acionar_importar,
+                                content=ft.Row(
+                                    controls=[
+                                        ft.Icon(ft.Icons.UPLOAD_FILE, color="#C62828", size=40),
+                                        ft.Column(
+                                            spacing=2,
+                                            controls=[
+                                                ft.Text("Restaurar Dados (Importar)", weight=ft.FontWeight.BOLD, color=MARROM, size=16),
+                                                ft.Text("Substitui tudo pelo backup selecionado", color=TEXTO_SECUNDARIO, size=12)
+                                            ]
+                                        )
+                                    ]
+                                )
+                            ),
+                        ]
+                    )
+                )
+            ]
+        )
+
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
+        page.controls.clear()
+        page.add(tela)
+        page.update()
+
+    # ==================================================
+    # PRECIFICAÇÃO (ESTILO LISTA + FORMULÁRIO DETALHADO)
+    # ==================================================
+
+    
+    def abrir_historico_precificacao(prec_id, nome):
+        historico = listar_historico_precificacao_v2(prec_id)
+
+        controles = []
+
+        if not historico:
+            controles.append(
+                ft.Container(
+                    padding=20,
+                    content=ft.Text(
+                        "Ainda não existem registros de histórico.",
+                        color=TEXTO_SECUNDARIO,
+                        text_align=ft.TextAlign.CENTER,
+                    )
+                )
+            )
+
+        for item in historico:
+            data = item["registrado_em"].replace("T", " ")
+
+            controles.append(
+                ft.Container(
+                    bgcolor=ROSA_CLARO,
+                    padding=14,
+                    border_radius=12,
+                    content=ft.Column(
+                        spacing=7,
+                        controls=[
+                            ft.Text(
+                                data,
+                                size=11,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                            ft.Divider(color=ROSA),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Custo dos insumos", size=12),
+                                    ft.Text(
+                                        f"R$ {item['custo_insumo_centavos']/100:.2f}",
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                ],
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Custo fixo", size=12),
+                                    ft.Text(
+                                        f"R$ {item['custo_fixo_centavos']/100:.2f}",
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                ],
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Custo total", size=12),
+                                    ft.Text(
+                                        f"R$ {item['custo_total_centavos']/100:.2f}",
+                                        weight=ft.FontWeight.BOLD,
+                                        color=MARROM,
+                                    ),
+                                ],
+                            ),
+                            ft.Divider(color=ROSA),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Preço sugerido", size=12),
+                                    ft.Text(
+                                        f"R$ {item['preco_sugerido_centavos']/100:.2f}",
+                                        weight=ft.FontWeight.BOLD,
+                                        color=ROSA,
+                                    ),
+                                ],
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Preço praticado", size=12),
+                                    ft.Text(
+                                        f"R$ {item['preco_praticado_centavos']/100:.2f}",
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                ],
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Markup aplicado", size=12),
+                                    ft.Text(
+                                        f"{item['markup_aplicado_pct']:.1f}%",
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                ],
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Margem de contribuição", size=12),
+                                    ft.Text(
+                                        f"R$ {item['margem_contribuicao_centavos']/100:.2f}",
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                ],
+                            ),
+                            ft.Text(
+                                f"Status: {item['status']}",
+                                size=12,
+                                weight=ft.FontWeight.BOLD,
+                                color="#2E7D32" if item["status"] == "Dentro da Margem" else "#C62828",
+                            ),
+                        ],
+                    ),
+                )
+            )
+
+        def fechar_dialogo(e):
+            dialogo.open = False
+            page.update()
+
+        dialogo = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(
+                f"Histórico — {nome}",
+                color=MARROM,
+                weight=ft.FontWeight.BOLD,
+            ),
+            content=ft.Container(
+                width=420,
+                content=ft.Column(
+                    controls=controles,
+                    spacing=12,
+                    height=450,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+            ),
+            actions=[
+                ft.TextButton("Fechar", on_click=fechar_dialogo),
+            ],
+        )
+
+        page.overlay.append(dialogo)
+        dialogo.open = True
+        page.update()
+
+
+    def abrir_precificacao(e=None):
+        precificacoes = listar_precificacoes()
+        cartoes = []
+
+        def solicitar_exclusao_prec(prec_id, nome):
+            def confirmar_exclusao(e):
+                dialogo.open = False
+                page.update()
+                excluir_precificacao_v2(prec_id)
+                abrir_precificacao()
+
+            def cancelar(e):
+                dialogo.open = False
+                page.update()
+
+            dialogo = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Excluir Precificação"),
+                content=ft.Text(f"Deseja excluir a precificação de {nome}?"),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=cancelar),
+                    ft.TextButton("Excluir", on_click=confirmar_exclusao, style=ft.ButtonStyle(color="#B00020")),
+                ],
+            )
+            page.overlay.append(dialogo)
+            dialogo.open = True
+            page.update()
+
+        # Obter taxa do cartão uma única vez para usar nos cálculos da lista
+        taxa_cartao = obter_taxa_cartao()
+
+        for prec in precificacoes:
+            preco_praticado = prec['preco_praticado_centavos'] / 100
+            
+            # Recalcular os dados para descobrir o status da margem
+            # Passando os argumentos na ordem correta (posicional) sem os nomes
+            res = calcular_simulacao_precificacao(
+                prec['receita_id'],
+                prec['quantidade_embalagem'],
+                prec['custo_embalagem_centavos'],
+                prec['markup_ideal_pct'],
+                prec['preco_praticado_centavos'],
+                taxa_cartao
+            )
+
+            # Definir cores baseadas no status
+            if res:
+                status_txt = res['status']
+                cor_status = "#2E7D32" if status_txt == "Dentro da Margem" else "#C62828"
+                fundo_status = "#E8F5E9" if status_txt == "Dentro da Margem" else "#FFEBEE"
+            else:
+                status_txt = "Erro"
+                cor_status = TEXTO_SECUNDARIO
+                fundo_status = ROSA_CLARO
+
+            cartoes.append(
+                ft.Container(
+                    bgcolor=BRANCO,
+                    padding=16,
+                    border_radius=16,
+                    on_click=lambda e, pid=prec['id']: abrir_edicao_precificacao(pid),
+                    content=ft.Column(
+                        spacing=8,
+                        controls=[
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text(
+                                        prec["nome_receita"],
+                                        size=17,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=MARROM,
+                                    ),
+                                    ft.Row(
+                                        spacing=0,
+                                        controls=[
+                                            ft.IconButton(
+                                                icon=ft.Icons.HISTORY,
+                                                icon_color=MARROM,
+                                                tooltip="Ver histórico",
+                                                on_click=lambda e, pid=prec["id"], n=prec["nome_receita"]: abrir_historico_precificacao(pid, n),
+                                            ),
+                                            ft.IconButton(
+                                                icon=ft.Icons.EDIT_OUTLINED,
+                                                icon_color=ROSA,
+                                                on_click=lambda e, pid=prec["id"]: abrir_edicao_precificacao(pid),
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                            ft.Divider(color=ROSA_CLARO, height=1),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Column(
+                                        spacing=2,
+                                        controls=[
+                                            ft.Text("Preço Praticado:", size=11, color=TEXTO_SECUNDARIO),
+                                            ft.Text(f"R$ {preco_praticado:.2f}", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
+                                        ]
+                                    ),
+                                    # "Etiqueta" visual para o status
+                                    ft.Container(
+                                        padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+                                        bgcolor=fundo_status,
+                                        border_radius=8,
+                                        content=ft.Text(status_txt, size=11, weight=ft.FontWeight.BOLD, color=cor_status)
+                                    )
+                                ]
+                            ),
+                        ]
+                    )
+                ),
+            )
+
+        if not cartoes:
+            cartoes.append(
+                ft.Container(
+                    padding=25, bgcolor=BRANCO, border_radius=16,
+                    content=ft.Column(
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Icon(ft.Icons.PRICE_CHANGE_OUTLINED, size=40, color=ROSA),
+                            ft.Text("Nenhuma precificação salva.", color=MARROM),
+                        ]
+                    )
+                )
+            )
+
+        tela = ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+            spacing=16,
+            controls=[
+                ft.Container(
+                    padding=ft.Padding.only(left=15, right=20, top=20, bottom=10),
+                    content=ft.Row(
+                        controls=[
+                            ft.Container(padding=8, border_radius=10, on_click=voltar_inicio, content=ft.Icon(ft.Icons.ARROW_BACK, color=MARROM, size=24)),
+                            ft.Text("Precificação", size=23, weight=ft.FontWeight.BOLD, color=MARROM),
+                        ]
+                    )
+                ),
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=18),
+                    content=ft.Container(
+                        width=380, padding=14, bgcolor=ROSA, border_radius=12,
+                        on_click=lambda e: abrir_edicao_precificacao(),
+                        content=ft.Row(
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            controls=[
+                                ft.Icon(ft.Icons.ADD, color=BRANCO),
+                                ft.Text("Nova Precificação", color=BRANCO, weight=ft.FontWeight.BOLD),
+                            ]
+                        )
+                    )
+                ),
+                ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Column(spacing=12, controls=cartoes))
+            ]
+        )
+        indice_atual["valor"] = 1
+        navegacao.selected_index = 1
+        page.controls.clear()
+        page.add(tela)
+        page.update()
+
+    def abrir_edicao_precificacao(precificacao_id=None):
+        em_edicao = precificacao_id is not None
+        dados_atuais = obter_precificacao_v2(precificacao_id) if em_edicao else None
+
+        conexao = obter_conexao()
+        try:
+            receitas = conexao.execute("SELECT * FROM receitas WHERE ativo = 1 AND tipo = 'PRODUTO' ORDER BY nome").fetchall()
+        finally:
+            conexao.close()
+            
+        if not receitas:
+            mostrar_aviso("Cadastre um Produto Final primeiro.")
+            return
+
+        taxa_cartao = obter_taxa_cartao()
+
+        dd_receita = ft.Dropdown(
+            label="Produto Final",
+            options=[ft.dropdown.Option(str(r['id']), r['nome']) for r in receitas],
+            value=str(dados_atuais['receita_id']) if em_edicao else str(receitas[0]['id']),
+            border_radius=12
+        )
+        
+        tf_qtd_emb = ft.TextField(
+            label="Qtd de Produto na Embalagem",
+            value=str(dados_atuais['quantidade_embalagem']) if em_edicao else "1",
+            keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
+        )
+        
+        tf_custo_emb = ft.TextField(
+            label="Embalagem + Sacola (R$)",
+            value=f"{dados_atuais['custo_embalagem_centavos']/100:.2f}".replace('.', ',') if em_edicao else "0,00",
+            keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
+        )
+
+        tf_markup_ideal = ft.TextField(
+            label="Markup Ideal (%)",
+            value=str(dados_atuais['markup_ideal_pct']) if em_edicao else "100",
+            keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
+        )
+        
+        tf_preco_praticado = ft.TextField(
+            label="Preço de Venda Praticado (R$)",
+            value=f"{dados_atuais['preco_praticado_centavos']/100:.2f}".replace('.', ',') if em_edicao else "0,00",
+            keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
+        )
+
+        # Result Labels
+        lbl_insumo = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_custo_fixo = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_custo_total = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, size=16, color=ROSA)
+        lbl_preco_sugerido = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, size=16, color=MARROM)
+        lbl_markup_aplicado = ft.Text("0%", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_status = ft.Text("...", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_margem = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, color=MARROM)
+
+        def atualizar_calculos(e=None):
+            try:
+                rec_id = int(dd_receita.value) if dd_receita.value else 0
+                qtd_emb = float((tf_qtd_emb.value or "0").replace(",", "."))
+                custo_emb = float((tf_custo_emb.value or "0").replace(",", ".")) * 100
+                mkp_ideal = float((tf_markup_ideal.value or "0").replace(",", "."))
+                preco_prat = float((tf_preco_praticado.value or "0").replace(",", ".")) * 100
+                
+                res = calcular_simulacao_precificacao(rec_id, qtd_emb, custo_emb, mkp_ideal, preco_prat, taxa_cartao)
+                if res:
+                    lbl_insumo.value = f"R$ {res['custo_insumo']:.2f}"
+                    lbl_custo_fixo.value = f"R$ {res['custo_fixo']:.2f}"
+                    lbl_custo_total.value = f"R$ {res['custo_total']:.2f}"
+                    lbl_preco_sugerido.value = f"R$ {res['preco_sugerido']:.2f}"
+                    lbl_markup_aplicado.value = f"{res['markup_aplicado_pct']:.1f}%"
+                    lbl_margem.value = f"R$ {res['margem_contribuicao']:.2f}"
+                    
+                    lbl_status.value = res['status']
+                    if res['status'] == "Dentro da Margem":
+                        lbl_status.color = "#2E7D32" # Green
+                    else:
+                        lbl_status.color = "#C62828" # Red
+                else:
+                    lbl_status.value = "Erro no calculo"
+                    
+            except Exception as err:
+                pass
+            page.update()
+
+        dd_receita.on_change = atualizar_calculos
+        tf_qtd_emb.on_change = atualizar_calculos
+        tf_custo_emb.on_change = atualizar_calculos
+        tf_markup_ideal.on_change = atualizar_calculos
+        tf_preco_praticado.on_change = atualizar_calculos
+
+        def salvar_form(e):
+            try:
+                rec_id = int(dd_receita.value)
+                qtd_emb = float((tf_qtd_emb.value or "0").replace(",", "."))
+                custo_emb = int(float((tf_custo_emb.value or "0").replace(",", ".")) * 100)
+                mkp_ideal = float((tf_markup_ideal.value or "0").replace(",", "."))
+                preco_prat = int(float((tf_preco_praticado.value or "0").replace(",", ".")) * 100)
+                
+                salvar_precificacao_v2(precificacao_id, rec_id, qtd_emb, custo_emb, mkp_ideal, preco_prat)
+                abrir_precificacao()
+            except Exception as err:
+                mostrar_aviso(f"Erro ao salvar: {err}")
+
+        atualizar_calculos() # Inicializa os valores
+
+        def row_resumo(label, control):
+            return ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[ft.Text(label, color=TEXTO_SECUNDARIO, size=13), control])
+
+        painel_resultados = ft.Container(
+            bgcolor=ROSA_CLARO,
+            padding=16,
+            border_radius=12,
+            content=ft.Column(
+                spacing=8,
+                controls=[
+                    ft.Text("RESULTADOS", size=11, weight=ft.FontWeight.BOLD, color=MARROM),
+                    row_resumo("Custo c/ Insumo:", lbl_insumo),
+                    row_resumo("Custo Fixo (Tempo):", lbl_custo_fixo),
+                    row_resumo("Taxa do Cartão:", ft.Text(f"{taxa_cartao}%", color=MARROM)),
+                    ft.Divider(color=ROSA),
+                    row_resumo("CUSTO TOTAL:", lbl_custo_total),
+                    row_resumo("Preço Sugerido:", lbl_preco_sugerido),
+                    ft.Divider(color=ROSA),
+                    row_resumo("Markup Aplicado:", lbl_markup_aplicado),
+                    row_resumo("Margem de Contribuição:", lbl_margem),
+                    ft.Container(
+                        padding=10, border_radius=8, bgcolor=BRANCO,
+                        content=ft.Row(
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            controls=[ft.Text("STATUS: ", weight=ft.FontWeight.BOLD), lbl_status]
+                        )
+                    )
+                ]
+            )
+        )
+
+        tela_form = ft.Column(
+            expand=True, scroll=ft.ScrollMode.AUTO, spacing=14,
+            controls=[
+                ft.Container(
+                    padding=ft.Padding.only(left=15, right=20, top=20, bottom=5),
+                    content=ft.Row(
+                        controls=[
+                            ft.Container(padding=8, border_radius=10, on_click=abrir_precificacao, content=ft.Icon(ft.Icons.ARROW_BACK, color=MARROM, size=24)),
+                            ft.Text("Editar Preço" if em_edicao else "Novo Preço", size=20, weight=ft.FontWeight.BOLD, color=MARROM),
+                        ]
+                    )
+                ),
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=18),
+                    content=ft.Column(
+                        spacing=12,
+                        controls=[
+                            dd_receita,
+                            ft.Row(controls=[tf_qtd_emb, tf_custo_emb]),
+                            ft.Row(controls=[tf_markup_ideal, tf_preco_praticado]),
+                            painel_resultados,
+                            ft.Container(
+                                width=380, padding=14, bgcolor=ROSA, border_radius=12, on_click=salvar_form,
+                                content=ft.Row(alignment=ft.MainAxisAlignment.CENTER, controls=[ft.Icon(ft.Icons.SAVE_OUTLINED, color=BRANCO), ft.Text("Salvar Precificação", color=BRANCO, weight=ft.FontWeight.BOLD)])
+                            )
+                        ]
+                    )
+                )
+            ]
+        )
+        page.controls.clear()
+        page.add(tela_form)
+        page.update()
 
     # ==================================================
     # INGREDIENTES
@@ -409,8 +1255,8 @@ def main(page: ft.Page):
             ],
         )
 
-        indice_atual["valor"] = 1
-        navegacao.selected_index = 1
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
         page.controls.clear()
         page.add(tela)
         page.update()
@@ -775,8 +1621,8 @@ def main(page: ft.Page):
             ],
         )
 
-        indice_atual["valor"] = 1
-        navegacao.selected_index = 1
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
         page.controls.clear()
         page.add(tela)
         page.update()
@@ -842,14 +1688,7 @@ def main(page: ft.Page):
 
                     dialogo_segundo.open = False
 
-                    page.snack_bar = ft.SnackBar(
-                        content=ft.Text(
-                            f"Erro ao excluir receita: {erro}"
-                        )
-                    )
-
-                    page.snack_bar.open = True
-                    page.update()
+                    mostrar_aviso(f"Erro ao excluir receita: {erro}", "#C62828")
 
             dialogo_primeiro = ft.AlertDialog(
                 modal=True,
@@ -1766,18 +2605,11 @@ def main(page: ft.Page):
                 "SELECT * FROM custos_fixos ORDER BY descricao"
             ).fetchall()
 
-            faturamento_row = conexao.execute(
-                """
-                SELECT valor
-                FROM configuracoes
-                WHERE chave = 'faturamento_mensal'
-                """
-            ).fetchone()
+            faturamento_row = conexao.execute("SELECT valor FROM configuracoes WHERE chave = 'faturamento_mensal'").fetchone()
+            faturamento_atual = faturamento_row["valor"] if faturamento_row else "2000.00"
 
-            faturamento_atual = (
-                faturamento_row["valor"]
-                if faturamento_row else "2000.00"
-            )
+            taxa_row = conexao.execute("SELECT valor FROM configuracoes WHERE chave = 'taxa_cartao'").fetchone()
+            taxa_atual = taxa_row["valor"] if taxa_row else "0.00"
 
         finally:
             conexao.close()
@@ -1796,49 +2628,40 @@ def main(page: ft.Page):
         )
 
         campo_faturamento = ft.TextField(
-            label="Faturamento Médio Mensal Alvo (R$) *",
+            label="Faturamento Médio Mensal Alvo (R$)",
             value=str(faturamento_atual),
             keyboard_type=ft.KeyboardType.NUMBER,
-            border_radius=12,
+            border_radius=12, expand=True
+        )
+        
+        campo_taxa = ft.TextField(
+            label="Taxa do Cartão (%)",
+            value=str(taxa_atual),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
         )
 
-        mensagem_custos = ft.Text(
-            "",
-            size=12,
-            color=ROSA,
-        )
+        mensagem_custos = ft.Text("", size=12, color=ROSA)
 
-        def salvar_faturamento_acao(e):
-
+        def salvar_configuracoes_acao(e):
             try:
-                val = (
-                    campo_faturamento.value or ""
-                ).replace(",", ".").strip()
+                val_fat = (campo_faturamento.value or "0").replace(",", ".").strip()
+                val_taxa = (campo_taxa.value or "0").replace(",", ".").strip()
 
-                if not val or float(val) <= 0:
-                    mensagem_custos.value = (
-                        "Informe um faturamento maior que zero."
-                    )
+                if float(val_fat) <= 0:
+                    mensagem_custos.value = "Informe um faturamento maior que zero."
                     page.update()
                     return
 
                 conexao = obter_conexao()
-
                 try:
-                    conexao.execute(
-                        """
-                        INSERT OR REPLACE INTO configuracoes
-                        (chave, valor)
-                        VALUES ('faturamento_mensal', ?)
-                        """,
-                        (val,),
-                    )
+                    conexao.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('faturamento_mensal', ?)", (val_fat,))
+                    conexao.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('taxa_cartao', ?)", (val_taxa,))
                     conexao.commit()
                 finally:
                     conexao.close()
 
                 abrir_custos_fixos()
-
             except Exception as err:
                 mensagem_custos.value = f"Erro ao atualizar: {err}"
                 page.update()
@@ -2120,24 +2943,11 @@ def main(page: ft.Page):
                                     ]
                                 ),
                             ),
-                            campo_faturamento,
+                            ft.Row(controls=[campo_faturamento, campo_taxa]),
                             mensagem_custos,
                             ft.Container(
-                                width=380,
-                                padding=12,
-                                bgcolor=ROSA,
-                                border_radius=12,
-                                on_click=salvar_faturamento_acao,
-                                content=ft.Row(
-                                    alignment=ft.MainAxisAlignment.CENTER,
-                                    controls=[
-                                        ft.Text(
-                                            "Atualizar Faturamento Mensal",
-                                            color=BRANCO,
-                                            weight=ft.FontWeight.BOLD,
-                                        ),
-                                    ],
-                                ),
+                                width=380, padding=12, bgcolor=ROSA, border_radius=12, on_click=salvar_configuracoes_acao,
+                                content=ft.Row(alignment=ft.MainAxisAlignment.CENTER, controls=[ft.Text("Atualizar Configurações", color=BRANCO, weight=ft.FontWeight.BOLD)])
                             ),
                             ft.Divider(color=ROSA_CLARO),
                             ft.Row(
@@ -2163,361 +2973,8 @@ def main(page: ft.Page):
             ],
         )
 
-        indice_atual["valor"] = 3
-        navegacao.selected_index = 3
-        page.controls.clear()
-        page.add(tela)
-        page.update()
-
-    # ==================================================
-    # PRECIFICAÇÃO DOS PRODUTOS FINAIS
-    # ==================================================
-
-    def abrir_precificacao(e=None):
-
-        conexao = obter_conexao()
-
-        try:
-            produtos = conexao.execute(
-                """
-                SELECT id, nome, rendimento_unidades,
-                       unidade_rendimento
-                FROM receitas
-                WHERE ativo = 1
-                  AND tipo = 'PRODUTO'
-                ORDER BY nome
-                """
-            ).fetchall()
-        finally:
-            conexao.close()
-
-        mensagem = ft.Text(
-            "",
-            size=12,
-            color="#B00020",
-        )
-
-        resultado = ft.Container(
-            visible=False,
-            bgcolor=ROSA_CLARO,
-            padding=16,
-            border_radius=12,
-        )
-
-        campo_embalagem = ft.TextField(
-            label="Custo da embalagem (R$)",
-            value="0,00",
-            keyboard_type=ft.KeyboardType.NUMBER,
-            border_radius=12,
-        )
-
-        campo_margem = ft.TextField(
-            label="Margem de lucro desejada (%)",
-            value="100",
-            keyboard_type=ft.KeyboardType.NUMBER,
-            border_radius=12,
-        )
-
-        campo_taxa = ft.TextField(
-            label="Taxa do cartão (%)",
-            value="0",
-            keyboard_type=ft.KeyboardType.NUMBER,
-            border_radius=12,
-        )
-
-        produto_selecionado = ft.Dropdown(
-            label="Selecione o produto final",
-            expand=True,
-            options=[
-                ft.dropdown.Option(
-                    str(p["id"]),
-                    p["nome"],
-                )
-                for p in produtos
-            ],
-        )
-
-        def carregar_precificacao(e=None):
-
-            resultado.visible = False
-            mensagem.value = ""
-
-            if not produto_selecionado.value:
-                page.update()
-                return
-
-            dados = obter_precificacao_produto(
-                int(produto_selecionado.value)
-            )
-
-            if dados:
-
-                campo_embalagem.value = (
-                    f"{dados['custo_embalagem_centavos'] / 100:.2f}"
-                    .replace(".", ",")
-                )
-
-                campo_margem.value = str(
-                    dados["margem_lucro_pct"]
-                )
-
-                campo_taxa.value = str(
-                    dados["taxa_cartao_pct"]
-                )
-
-            else:
-                campo_embalagem.value = "0,00"
-                campo_margem.value = "100"
-                campo_taxa.value = "0"
-
-            page.update()
-
-        produto_selecionado.on_change = carregar_precificacao
-
-        # --------------------------------------------------
-        # SALVAR E CALCULAR
-        # --------------------------------------------------
-
-        def salvar_e_calcular(e=None):
-
-            try:
-
-                if not produto_selecionado.value:
-                    mensagem.value = "Selecione um produto final."
-                    page.update()
-                    return
-
-                embalagem = float(
-                    (campo_embalagem.value or "0").replace(",", ".")
-                )
-
-                margem = float(
-                    (campo_margem.value or "0").replace(",", ".")
-                )
-
-                taxa = float(
-                    (campo_taxa.value or "0").replace(",", ".")
-                )
-
-                if embalagem < 0 or margem < 0 or taxa < 0:
-                    mensagem.value = (
-                        "Os valores não podem ser negativos."
-                    )
-                    page.update()
-                    return
-
-                if taxa >= 100:
-                    mensagem.value = (
-                        "A taxa do cartão deve ser menor que 100%."
-                    )
-                    page.update()
-                    return
-
-                receita_id = int(produto_selecionado.value)
-
-                salvar_precificacao_produto(
-                    receita_id=receita_id,
-                    custo_embalagem_centavos=round(embalagem * 100),
-                    margem_lucro_pct=margem,
-                    taxa_cartao_pct=taxa,
-                )
-
-                calculo = calcular_precificacao_produto(receita_id)
-
-                if not calculo:
-                    mensagem.value = (
-                        "Não foi possível calcular. Confira a ficha técnica."
-                    )
-                    page.update()
-                    return
-
-                resultado.content = ft.Column(
-                    spacing=9,
-                    controls=[
-                        ft.Text(
-                            "RESULTADO DA PRECIFICAÇÃO",
-                            size=12,
-                            weight=ft.FontWeight.BOLD,
-                            color=MARROM,
-                        ),
-                        ft.Divider(color=ROSA),
-                        ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            controls=[
-                                ft.Text(
-                                    "Custo dos insumos:",
-                                    color=MARROM,
-                                ),
-                                ft.Text(
-                                    f"R$ {calculo['custo_insumos']:.2f}",
-                                    weight=ft.FontWeight.BOLD,
-                                    color=MARROM,
-                                ),
-                            ],
-                        ),
-                        ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            controls=[
-                                ft.Text(
-                                    "Embalagem:",
-                                    color=MARROM,
-                                ),
-                                ft.Text(
-                                    f"R$ {calculo['custo_embalagem']:.2f}",
-                                    color=MARROM,
-                                ),
-                            ],
-                        ),
-                        ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            controls=[
-                                ft.Text(
-                                    "Rateio de custos fixos:",
-                                    color=MARROM,
-                                ),
-                                ft.Text(
-                                    f"R$ {calculo['custo_fixo']:.2f}",
-                                    color=MARROM,
-                                ),
-                            ],
-                        ),
-                        ft.Divider(color=ROSA),
-                        ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            controls=[
-                                ft.Text(
-                                    "Custo total do lote:",
-                                    color=MARROM,
-                                ),
-                                ft.Text(
-                                    f"R$ {calculo['custo_total']:.2f}",
-                                    weight=ft.FontWeight.BOLD,
-                                    color=MARROM,
-                                ),
-                            ],
-                        ),
-                        ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            controls=[
-                                ft.Text(
-                                    "Custo por unidade de rendimento:",
-                                    color=MARROM,
-                                ),
-                                ft.Text(
-                                    f"R$ {calculo['custo_unitario']:.4f}",
-                                    color=MARROM,
-                                ),
-                            ],
-                        ),
-                        ft.Divider(color=ROSA),
-                        ft.Text(
-                            f"PREÇO DE VENDA SUGERIDO: "
-                            f"R$ {calculo['preco_venda_sugerido']:.2f}",
-                            size=19,
-                            weight=ft.FontWeight.BOLD,
-                            color=ROSA,
-                        ),
-                        ft.Text(
-                            f"Lucro estimado por unidade: "
-                            f"R$ {calculo['lucro_unitario']:.2f}",
-                            color=MARROM,
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                    ],
-                )
-
-                resultado.visible = True
-                mensagem.value = "Precificação salva e calculada."
-                mensagem.color = "#2E7D32"
-
-                page.update()
-
-            except ValueError as erro:
-                mensagem.value = f"Verifique os valores: {erro}"
-                mensagem.color = "#B00020"
-                page.update()
-
-            except Exception as erro:
-                mensagem.value = f"Erro na precificação: {erro}"
-                mensagem.color = "#B00020"
-                page.update()
-
-        tela = ft.Column(
-            expand=True,
-            scroll=ft.ScrollMode.AUTO,
-            spacing=15,
-            controls=[
-                ft.Container(
-                    padding=ft.Padding.only(
-                        left=15,
-                        right=20,
-                        top=20,
-                        bottom=5,
-                    ),
-                    content=ft.Row(
-                        controls=[
-                            ft.Container(
-                                padding=8,
-                                border_radius=10,
-                                on_click=voltar_inicio,
-                                content=ft.Icon(
-                                    ft.Icons.ARROW_BACK,
-                                    color=MARROM,
-                                    size=24,
-                                ),
-                            ),
-                            ft.Text(
-                                "Precificação de Produtos",
-                                size=21,
-                                weight=ft.FontWeight.BOLD,
-                                color=MARROM,
-                            ),
-                        ],
-                    ),
-                ),
-                ft.Container(
-                    padding=ft.Padding.symmetric(horizontal=18),
-                    content=ft.Column(
-                        spacing=13,
-                        controls=[
-                            ft.Text(
-                                "A precificação é independente da ficha técnica.",
-                                size=12,
-                                color=TEXTO_SECUNDARIO,
-                            ),
-                            produto_selecionado,
-                            campo_embalagem,
-                            campo_margem,
-                            campo_taxa,
-                            mensagem,
-                            ft.Container(
-                                width=380,
-                                padding=14,
-                                bgcolor=ROSA,
-                                border_radius=12,
-                                on_click=salvar_e_calcular,
-                                content=ft.Row(
-                                    alignment=ft.MainAxisAlignment.CENTER,
-                                    controls=[
-                                        ft.Icon(
-                                            ft.Icons.CALCULATE_OUTLINED,
-                                            color=BRANCO,
-                                        ),
-                                        ft.Text(
-                                            "Salvar e calcular preço",
-                                            color=BRANCO,
-                                            weight=ft.FontWeight.BOLD,
-                                        ),
-                                    ],
-                                ),
-                            ),
-                            resultado,
-                        ],
-                    ),
-                ),
-            ],
-        )
-
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
         page.controls.clear()
         page.add(tela)
         page.update()
@@ -2875,8 +3332,8 @@ def main(page: ft.Page):
             ],
         )
 
-        indice_atual["valor"] = 4
-        navegacao.selected_index = 4
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
         page.controls.clear()
         page.add(tela)
         page.update()
@@ -3043,24 +3500,13 @@ def main(page: ft.Page):
                 label="Início",
             ),
             ft.NavigationBarDestination(
-                icon=ft.Icons.INVENTORY_2_OUTLINED,
-                label="Insumos",
-            ),
-            ft.NavigationBarDestination(
-                icon=ft.Icons.MENU_BOOK_OUTLINED,
-                label="Receitas",
-            ),
-            ft.NavigationBarDestination(
-                icon=ft.Icons.CALCULATE_OUTLINED,
-                label="Custos Fixos",
-            ),
-                        ft.NavigationBarDestination(
-                icon=ft.Icons.LOCAL_OFFER_OUTLINED,
+                icon=ft.Icons.PRICE_CHANGE_OUTLINED,
+                selected_icon=ft.Icons.PRICE_CHANGE,
                 label="Precificação",
             ),
             ft.NavigationBarDestination(
-                icon=ft.Icons.BAR_CHART_OUTLINED,
-                label="Relatórios",
+                icon=ft.Icons.MENU,
+                label="Menu",
             ),
         ],
     )
@@ -3154,8 +3600,4 @@ def criar_atalho(icone, titulo, descricao, cor, acao=None):
 # ==================================================
 
 if __name__ == "__main__":
-    ft.run(
-        main,
-        view=ft.AppView.WEB_BROWSER,
-        port=8080,
-    )
+    ft.run(main)
