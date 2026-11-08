@@ -1343,12 +1343,10 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     # 4. Custo Total
     custo_total = custo_insumo + custo_fixo + custo_embalagem
     
-    # 5. Preço Sugerido (com markup e taxas)
-    # Preco com Markup = Custo Total * (1 + Markup_Ideal/100)
-    preco_com_markup = custo_total * (1 + (markup_ideal_pct / 100.0))
-    # Preco Sugerido = Preco com Markup / (1 - Taxa/100)
-    fator_taxa = 1 - (taxa_cartao_pct / 100.0)
-    preco_sugerido = preco_com_markup / fator_taxa if fator_taxa > 0 else 0
+    # 5. Preço Sugerido Base
+    # O preço sugerido não depende de uma modalidade específica.
+    # As taxas são aplicadas separadamente na comparação por forma de pagamento.
+    preco_sugerido = custo_total * (1 + (markup_ideal_pct / 100.0))
     
     # 6. Analise do Preço Praticado
     preco_praticado = preco_praticado_centavos / 100.0
