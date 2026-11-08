@@ -1623,3 +1623,28 @@ def atualizar_status_orcamento(orcamento_id, status):
         conexao.commit()
     finally:
         conexao.close()
+
+
+
+def excluir_orcamentos(orcamento_ids):
+    """Exclui um ou vários orçamentos e seus itens/históricos relacionados."""
+    ids = list(dict.fromkeys(int(valor) for valor in orcamento_ids))
+    if not ids:
+        return 0
+
+    conexao = obter_conexao()
+    try:
+        placeholders = ",".join("?" for _ in ids)
+        conexao.execute("BEGIN")
+        conexao.execute(
+            f"DELETE FROM orcamentos WHERE id IN ({placeholders})",
+            ids,
+        )
+        excluidos = conexao.execute("SELECT changes()").fetchone()[0]
+        conexao.commit()
+        return excluidos
+    except Exception:
+        conexao.rollback()
+        raise
+    finally:
+        conexao.close()
