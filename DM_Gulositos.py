@@ -1049,39 +1049,38 @@ def main(page: ft.Page):
                 lbl_valor_desconto.value = formatar_reais(valor_desconto)
                 lbl_preco_com_desconto.value = formatar_reais(preco_com_desconto)
 
+                margens_desconto = []
+                for linha in linhas_desconto:
+                    taxa = float(taxas_pagamento.get(linha["chave"], 0))
+                    valor_taxa = preco_com_desconto * taxa / 100
+                    valor_liquido = preco_com_desconto - valor_taxa
+                    lucro = valor_liquido - custo_total
+                    margem = (lucro / preco_com_desconto * 100) if preco_com_desconto > 0 else -100
+                    dentro_margem = margem >= margem_minima
+
+                    linha["liquido"].value = formatar_reais(valor_liquido)
+                    linha["lucro"].value = formatar_reais(lucro)
+                    linha["margem"].value = f"{margem:.1f}%".replace(".", ",")
+                    linha["margem"].color = "#2E7D32" if dentro_margem else "#C62828"
+                    linha["status"].value = (
+                        "Dentro da margem mínima"
+                        if dentro_margem else "Abaixo da margem mínima"
+                    )
+                    linha["status"].color = "#2E7D32" if dentro_margem else "#C62828"
+                    margens_desconto.append(dentro_margem)
+
                 if valor_desconto <= 0:
                     lbl_alerta_desconto.value = "Sem desconto aplicado. Informe um valor para simular uma promoção."
                     lbl_alerta_desconto.color = TEXTO_SECUNDARIO
+                elif all(margens_desconto):
+                    lbl_alerta_desconto.value = "Desconto viável: todas as formas de pagamento permanecem dentro da margem mínima."
+                    lbl_alerta_desconto.color = "#2E7D32"
+                elif any(margens_desconto):
+                    lbl_alerta_desconto.value = "Atenção: o desconto deixa algumas formas de pagamento abaixo da margem mínima."
+                    lbl_alerta_desconto.color = "#C77700"
                 else:
-                    margens_desconto = []
-                    for linha in linhas_desconto:
-                        taxa = float(taxas_pagamento.get(linha["chave"], 0))
-                        valor_taxa = preco_com_desconto * taxa / 100
-                        valor_liquido = preco_com_desconto - valor_taxa
-                        lucro = valor_liquido - custo_total
-                        margem = (lucro / preco_com_desconto * 100) if preco_com_desconto > 0 else -100
-                        dentro_margem = margem >= margem_minima
-
-                        linha["liquido"].value = formatar_reais(valor_liquido)
-                        linha["lucro"].value = formatar_reais(lucro)
-                        linha["margem"].value = f"{margem:.1f}%".replace(".", ",")
-                        linha["margem"].color = "#2E7D32" if dentro_margem else "#C62828"
-                        linha["status"].value = (
-                            "Dentro da margem mínima"
-                            if dentro_margem else "Abaixo da margem mínima"
-                        )
-                        linha["status"].color = "#2E7D32" if dentro_margem else "#C62828"
-                        margens_desconto.append(dentro_margem)
-
-                    if all(margens_desconto):
-                        lbl_alerta_desconto.value = "Desconto viável: todas as formas de pagamento permanecem dentro da margem mínima."
-                        lbl_alerta_desconto.color = "#2E7D32"
-                    elif any(margens_desconto):
-                        lbl_alerta_desconto.value = "Atenção: o desconto deixa algumas formas de pagamento abaixo da margem mínima."
-                        lbl_alerta_desconto.color = "#C77700"
-                    else:
-                        lbl_alerta_desconto.value = "Não recomendado: todas as formas de pagamento ficam abaixo da margem mínima."
-                        lbl_alerta_desconto.color = "#C62828"
+                    lbl_alerta_desconto.value = "Não recomendado: todas as formas de pagamento ficam abaixo da margem mínima."
+                    lbl_alerta_desconto.color = "#C62828"
 
             except Exception as err:
                 lbl_preco_comparacao.value = f"Não foi possível atualizar: {err}"
