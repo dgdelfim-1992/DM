@@ -1065,7 +1065,7 @@ def main(page: ft.Page):
                 for nome, chave in modalidades:
                     sinal = totais[chave] * 0.5
                     saldo = totais[chave] - sinal
-                    linhas.append(f"• {nome}: sinal de {formatar_reais(sinal)} + saldo de {formatar_reais(saldo)} na entrega/retirada")
+                    linhas.append(f"• {nome}: sinal de {formatar_reais(sinal)} | saldo restante de {formatar_reais(saldo)}")
             linhas += ["", "Será um prazer preparar seu pedido! 💗", "DM Gulositos"]
             return "\n".join(linhas)
 
