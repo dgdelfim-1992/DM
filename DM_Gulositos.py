@@ -927,7 +927,6 @@ def main(page: ft.Page):
         resumo_controle = ft.Column(spacing=8)
         mensagem_preview = ft.TextField(label="Prévia da mensagem para o cliente", multiline=True, min_lines=10, max_lines=18, read_only=True)
         aviso_margem = ft.Text("", size=12, weight=ft.FontWeight.BOLD)
-        numero_orcamento = f"ORC-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}"
 
         def adicionar_item(ev=None):
             try:
@@ -1086,6 +1085,7 @@ def main(page: ft.Page):
                     "desconto_tipo": dd_tipo_desconto.value,
                     "desconto_valor": float((desconto.value or "0").replace(",", ".")),
                 }
+                numero_orcamento = f"ORC-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}"
                 dados = {
                     "numero": numero_orcamento,
                     "cliente": cliente.value.strip(),
