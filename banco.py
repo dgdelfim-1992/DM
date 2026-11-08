@@ -48,6 +48,23 @@ def criar_tabelas():
                 criado_em TEXT NOT NULL,
                 atualizado_em TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS historico_precos_ingredientes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ingrediente_id INTEGER NOT NULL,
+                nome TEXT NOT NULL,
+                quantidade_compra REAL NOT NULL,
+                unidade_compra TEXT NOT NULL,
+                preco_pago_centavos INTEGER NOT NULL,
+                quantidade_base REAL NOT NULL,
+                unidade_base TEXT NOT NULL,
+                custo_por_unidade_base REAL NOT NULL,
+                registrado_em TEXT NOT NULL,
+                FOREIGN KEY (ingrediente_id) REFERENCES ingredientes(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_historico_precos_ingrediente
+            ON historico_precos_ingredientes (ingrediente_id, id);
+            
             CREATE TABLE IF NOT EXISTS receitas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nome TEXT NOT NULL,
@@ -148,6 +165,39 @@ def criar_tabelas():
             if nome_coluna not in colunas_prec:
                 conexao.execute(f"ALTER TABLE precificacoes ADD COLUMN {nome_coluna} {tipo_coluna}")
 
+        # Cria um registro inicial para os ingredientes já cadastrados.
+        # Não representa um preço antigo: é apenas o ponto de partida
+        # para as próximas comparações.
+        conexao.execute("""
+            INSERT INTO historico_precos_ingredientes (
+                ingrediente_id,
+                nome,
+                quantidade_compra,
+                unidade_compra,
+                preco_pago_centavos,
+                quantidade_base,
+                unidade_base,
+                custo_por_unidade_base,
+                registrado_em
+            )
+            SELECT
+                i.id,
+                i.nome,
+                i.quantidade_compra,
+                i.unidade_compra,
+                i.preco_pago_centavos,
+                i.quantidade_base,
+                i.unidade_base,
+                i.custo_por_unidade_base,
+                COALESCE(i.atualizado_em, i.criado_em)
+            FROM ingredientes i
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM historico_precos_ingredientes h
+                WHERE h.ingrediente_id = i.id
+            )
+        """)
+
         conexao.commit()
     finally:
         conexao.close()
@@ -185,33 +235,99 @@ def calcular_custo_unitario(preco_pago_centavos, quantidade_base):
 # =========================================================
 # INGREDIENTES
 # =========================================================
-def cadastrar_ingrediente(nome, marca, fornecedor, quantidade_compra, unidade_compra, preco_pago_centavos, observacoes=""):
-    nome = nome.strip()
+def cadastrar_ingrediente(
+    nome,
+    marca,
+    fornecedor,
+    quantidade_compra,
+    unidade_compra,
+    preco_pago_centavos,
+    observacoes=""
+):
+    nome = (nome or "").strip()
+
     if not nome:
         raise ValueError("Informe o nome do ingrediente.")
 
-    quantidade_base, unidade_base = converter_para_base(quantidade_compra, unidade_compra)
-    custo_unitario = calcular_custo_unitario(preco_pago_centavos, quantidade_base)
+    quantidade_base, unidade_base = converter_para_base(
+        quantidade_compra,
+        unidade_compra
+    )
+
+    custo_unitario = calcular_custo_unitario(
+        preco_pago_centavos,
+        quantidade_base
+    )
+
     agora_iso = datetime.now().isoformat(timespec="seconds")
     unidade_normalizada = unidade_compra.strip().lower()
 
     conexao = obter_conexao()
+
     try:
         cursor = conexao.execute("""
             INSERT INTO ingredientes (
-                nome, marca, fornecedor, quantidade_compra, unidade_compra, preco_pago_centavos,
-                quantidade_base, unidade_base, custo_por_unidade_base, observacoes,
-                ativo, criado_em, atualizado_em
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                nome,
+                marca,
+                fornecedor,
+                quantidade_compra,
+                unidade_compra,
+                preco_pago_centavos,
+                quantidade_base,
+                unidade_base,
+                custo_por_unidade_base,
+                observacoes,
+                ativo,
+                criado_em,
+                atualizado_em
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
         """, (
-            nome, marca.strip() if marca else None, fornecedor.strip() if fornecedor else None,
-            quantidade_compra, unidade_normalizada, preco_pago_centavos, quantidade_base,
-            unidade_base, custo_unitario, observacoes.strip() if observacoes else None,
-            agora_iso, agora_iso
+            nome,
+            marca.strip() if marca else None,
+            fornecedor.strip() if fornecedor else None,
+            quantidade_compra,
+            unidade_normalizada,
+            preco_pago_centavos,
+            quantidade_base,
+            unidade_base,
+            custo_unitario,
+            observacoes.strip() if observacoes else None,
+            agora_iso,
+            agora_iso
         ))
+
         ingrediente_id = cursor.lastrowid
+
+        # Registra o preço inicial no histórico.
+        conexao.execute("""
+            INSERT INTO historico_precos_ingredientes (
+                ingrediente_id,
+                nome,
+                quantidade_compra,
+                unidade_compra,
+                preco_pago_centavos,
+                quantidade_base,
+                unidade_base,
+                custo_por_unidade_base,
+                registrado_em
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            ingrediente_id,
+            nome,
+            quantidade_compra,
+            unidade_normalizada,
+            preco_pago_centavos,
+            quantidade_base,
+            unidade_base,
+            custo_unitario,
+            agora_iso
+        ))
+
         conexao.commit()
         return ingrediente_id
+
     finally:
         conexao.close()
 
@@ -233,32 +349,196 @@ def obter_ingrediente(ingrediente_id):
     finally:
         conexao.close()
 
-def atualizar_ingrediente(ingrediente_id, nome, marca, fornecedor, quantidade_compra, unidade_compra, preco_pago_centavos, observacoes=""):
+def atualizar_ingrediente(
+    ingrediente_id,
+    nome,
+    marca,
+    fornecedor,
+    quantidade_compra,
+    unidade_compra,
+    preco_pago_centavos,
+    observacoes=""
+):
     nome = (nome or "").strip()
+
     if not nome:
         raise ValueError("Informe o nome do ingrediente.")
 
     unidade_normalizada = (unidade_compra or "").strip().lower()
-    quantidade_base, unidade_base = converter_para_base(quantidade_compra, unidade_normalizada)
-    custo_unitario = calcular_custo_unitario(preco_pago_centavos, quantidade_base)
+
+    quantidade_base, unidade_base = converter_para_base(
+        quantidade_compra,
+        unidade_normalizada
+    )
+
+    custo_unitario = calcular_custo_unitario(
+        preco_pago_centavos,
+        quantidade_base
+    )
+
     agora_iso = datetime.now().isoformat(timespec="seconds")
 
     conexao = obter_conexao()
+
     try:
+        anterior = conexao.execute("""
+            SELECT *
+            FROM ingredientes
+            WHERE id = ? AND ativo = 1
+        """, (ingrediente_id,)).fetchone()
+
+        if anterior is None:
+            raise ValueError("Ingrediente não encontrado.")
+
+        # Verifica se houve alteração que afeta o custo.
+        houve_alteracao_preco = (
+            int(anterior["preco_pago_centavos"]) != int(preco_pago_centavos)
+            or float(anterior["quantidade_compra"]) != float(quantidade_compra)
+            or anterior["unidade_compra"] != unidade_normalizada
+            or anterior["unidade_base"] != unidade_base
+        )
+
         conexao.execute("""
             UPDATE ingredientes SET
-                nome = ?, marca = ?, fornecedor = ?, quantidade_compra = ?, unidade_compra = ?,
-                preco_pago_centavos = ?, quantidade_base = ?, unidade_base = ?,
-                custo_por_unidade_base = ?, observacoes = ?, atualizado_em = ?
+                nome = ?,
+                marca = ?,
+                fornecedor = ?,
+                quantidade_compra = ?,
+                unidade_compra = ?,
+                preco_pago_centavos = ?,
+                quantidade_base = ?,
+                unidade_base = ?,
+                custo_por_unidade_base = ?,
+                observacoes = ?,
+                atualizado_em = ?
             WHERE id = ?
         """, (
-            nome, marca.strip() if marca else None, fornecedor.strip() if fornecedor else None,
-            quantidade_compra, unidade_normalizada, preco_pago_centavos, quantidade_base,
-            unidade_base, custo_unitario, observacoes.strip() if observacoes else None,
-            agora_iso, ingrediente_id
+            nome,
+            marca.strip() if marca else None,
+            fornecedor.strip() if fornecedor else None,
+            quantidade_compra,
+            unidade_normalizada,
+            preco_pago_centavos,
+            quantidade_base,
+            unidade_base,
+            custo_unitario,
+            observacoes.strip() if observacoes else None,
+            agora_iso,
+            ingrediente_id
         ))
+
+        # Só registra histórico quando o custo ou a apresentação
+        # da embalagem realmente mudar.
+        if houve_alteracao_preco:
+            conexao.execute("""
+                INSERT INTO historico_precos_ingredientes (
+                    ingrediente_id,
+                    nome,
+                    quantidade_compra,
+                    unidade_compra,
+                    preco_pago_centavos,
+                    quantidade_base,
+                    unidade_base,
+                    custo_por_unidade_base,
+                    registrado_em
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                ingrediente_id,
+                nome,
+                quantidade_compra,
+                unidade_normalizada,
+                preco_pago_centavos,
+                quantidade_base,
+                unidade_base,
+                custo_unitario,
+                agora_iso
+            ))
+
         conexao.commit()
         return True
+
+    finally:
+        conexao.close()
+
+def listar_alertas_aumento_ingredientes():
+    conexao = obter_conexao()
+
+    try:
+        registros = conexao.execute("""
+            SELECT
+                i.id AS ingrediente_id,
+                i.nome AS nome_atual,
+                h.id AS historico_id,
+                h.nome,
+                h.preco_pago_centavos,
+                h.quantidade_compra,
+                h.unidade_compra,
+                h.unidade_base,
+                h.custo_por_unidade_base,
+                h.registrado_em
+            FROM ingredientes i
+            INNER JOIN historico_precos_ingredientes h
+                ON h.ingrediente_id = i.id
+            WHERE i.ativo = 1
+            ORDER BY i.id, h.id DESC
+        """).fetchall()
+
+        historicos = {}
+
+        for registro in registros:
+            ingrediente_id = registro["ingrediente_id"]
+
+            if ingrediente_id not in historicos:
+                historicos[ingrediente_id] = []
+
+            historicos[ingrediente_id].append(registro)
+
+        alertas = []
+
+        for ingrediente_id, historico in historicos.items():
+
+            # É necessário ter pelo menos dois registros.
+            if len(historico) < 2:
+                continue
+
+            atual = historico[0]
+            anterior = historico[1]
+
+            # Não compara unidades-base diferentes.
+            if atual["unidade_base"] != anterior["unidade_base"]:
+                continue
+
+            custo_atual = float(atual["custo_por_unidade_base"])
+            custo_anterior = float(anterior["custo_por_unidade_base"])
+
+            if custo_anterior <= 0:
+                continue
+
+            aumento = custo_atual - custo_anterior
+
+            if aumento > 0:
+                percentual = (aumento / custo_anterior) * 100
+
+                alertas.append({
+                    "ingrediente_id": ingrediente_id,
+                    "nome": atual["nome_atual"],
+                    "unidade_base": atual["unidade_base"],
+                    "custo_anterior": custo_anterior,
+                    "custo_atual": custo_atual,
+                    "aumento_percentual": percentual,
+                    "preco_anterior": anterior["preco_pago_centavos"] / 100,
+                    "preco_atual": atual["preco_pago_centavos"] / 100,
+                    "data_atual": atual["registrado_em"],
+                })
+
+        alertas.sort(
+            key=lambda item: item["aumento_percentual"],
+            reverse=True
+        )
+
+        return alertas
+
     finally:
         conexao.close()
 
