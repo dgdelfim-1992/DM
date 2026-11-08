@@ -1119,7 +1119,7 @@ def main(page: ft.Page):
                 ft.Divider(color=ROSA_CLARO),
                 ft.Text("Adicionar produtos", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
                 dd_produto,
-                ft.Row(controls=[quantidade, ft.ElevatedButton("Adicionar", icon=ft.Icons.ADD, on_click=adicionar_item, bgcolor=ROSA, color=BRANCO)]),
+                ft.Row(controls=[quantidade, ft.Button("Adicionar", icon=ft.Icons.ADD, on_click=adicionar_item, bgcolor=ROSA, color=BRANCO)]),
                 lista_controle,
                 ft.Divider(color=ROSA_CLARO),
                 ft.Text("Desconto no orçamento", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
@@ -1130,8 +1130,8 @@ def main(page: ft.Page):
                 aviso_margem,
                 ft.Text("Mensagem pronta para compartilhar", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
                 mensagem_preview,
-                ft.ElevatedButton("Salvar orçamento e copiar mensagem", icon=ft.Icons.CONTENT_COPY, on_click=salvar_e_copiar, bgcolor=ROSA, color=BRANCO, expand=True),
-                ft.OutlinedButton("Ver histórico de orçamentos", icon=ft.Icons.HISTORY, on_click=lambda ev: montar_tela_historico()),
+                ft.Button("Salvar orçamento e copiar mensagem", icon=ft.Icons.CONTENT_COPY, on_click=salvar_e_copiar, bgcolor=ROSA, color=BRANCO, expand=True),
+                ft.Button("Ver histórico de orçamentos", icon=ft.Icons.HISTORY, on_click=lambda ev: montar_tela_historico(), bgcolor=ROSA_CLARO, color=MARROM),
             ])),
         ])
         indice_atual["valor"] = 2
