@@ -827,7 +827,7 @@ def main(page: ft.Page):
             for registro in registros:
                 total = registro["total_final_centavos"] / 100
                 cores_status = {
-                    "Aprovado": ("#E8F5E9", "#28643A"),
+                    "Aprovado": ("#D1F0D5", "#1B5E20"),
                     "Recusado": ("#FCE8E8", "#A52D35"),
                     "Enviado": ("#E8F1FA", "#285A83"),
                     "Em elaboração": ("#FFF3E0", "#8A5A16"),
