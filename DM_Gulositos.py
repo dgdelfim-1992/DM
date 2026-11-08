@@ -17,6 +17,8 @@ from database.banco import (
     salvar_precificacao_v2,
     excluir_precificacao_v2,
     obter_taxa_cartao,
+    obter_taxas_pagamento,
+    salvar_taxas_pagamento,
     obter_margem_minima,
     salvar_margem_minima,
     calcular_simulacao_precificacao,
@@ -777,7 +779,8 @@ def main(page: ft.Page):
             mostrar_aviso("Cadastre um Produto Final primeiro.")
             return
 
-        taxa_cartao = obter_taxa_cartao()
+        taxas_pagamento = obter_taxas_pagamento()
+        forma_pagamento = {"valor": "credito_avista"}
         margem_minima = obter_margem_minima()
 
         dd_receita = ft.Dropdown(
@@ -811,6 +814,19 @@ def main(page: ft.Page):
             keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
         )
         
+        dd_forma_pagamento = ft.Dropdown(
+            label="Forma de Pagamento",
+            value="credito_avista",
+            options=[
+                ft.dropdown.Option("pix", "Pix"),
+                ft.dropdown.Option("dinheiro", "Dinheiro"),
+                ft.dropdown.Option("debito", "Cartão de débito"),
+                ft.dropdown.Option("credito_avista", "Crédito à vista"),
+                ft.dropdown.Option("credito_parcelado", "Crédito parcelado"),
+            ],
+            border_radius=12,
+        )
+
         tf_preco_praticado = ft.TextField(
             label="Preço de Venda Praticado (R$)",
             value=f"{dados_atuais['preco_praticado_centavos']/100:.2f}".replace('.', ',') if em_edicao else "0,00",
@@ -835,7 +851,8 @@ def main(page: ft.Page):
                 margem_min = float((tf_margem_minima.value or "0").replace(",", "."))
                 preco_prat = float((tf_preco_praticado.value or "0").replace(",", ".")) * 100
                 
-                res = calcular_simulacao_precificacao(rec_id, qtd_emb, custo_emb, mkp_ideal, preco_prat, taxa_cartao, margem_min)
+                taxa_selecionada = taxas_pagamento[forma_pagamento["valor"]]
+                res = calcular_simulacao_precificacao(rec_id, qtd_emb, custo_emb, mkp_ideal, preco_prat, taxa_selecionada, margem_min)
                 if res:
                     lbl_insumo.value = f"R$ {res['custo_insumo']:.2f}"
                     lbl_custo_fixo.value = f"R$ {res['custo_fixo']:.2f}"
@@ -856,6 +873,11 @@ def main(page: ft.Page):
                 pass
             page.update()
 
+        def alterar_forma_pagamento(e):
+            forma_pagamento["valor"] = dd_forma_pagamento.value
+            atualizar_calculos()
+
+        dd_forma_pagamento.on_change = alterar_forma_pagamento
         dd_receita.on_change = atualizar_calculos
         tf_qtd_emb.on_change = atualizar_calculos
         tf_custo_emb.on_change = atualizar_calculos
@@ -875,8 +897,12 @@ def main(page: ft.Page):
                 if margem_min < 0 or margem_min >= 100:
                     raise ValueError("A margem mínima deve estar entre 0% e 99,99%.")
 
+                taxa_selecionada = taxas_pagamento[forma_pagamento["valor"]]
                 salvar_margem_minima(margem_min)
-                salvar_precificacao_v2(precificacao_id, rec_id, qtd_emb, custo_emb, mkp_ideal, preco_prat, margem_min)
+                salvar_precificacao_v2(
+                    precificacao_id, rec_id, qtd_emb, custo_emb,
+                    mkp_ideal, preco_prat, margem_min, taxa_selecionada
+                )
                 abrir_precificacao()
             except Exception as err:
                 mostrar_aviso(f"Erro ao salvar: {err}")
@@ -896,7 +922,13 @@ def main(page: ft.Page):
                     ft.Text("RESULTADOS", size=11, weight=ft.FontWeight.BOLD, color=MARROM),
                     row_resumo("Custo c/ Insumo:", lbl_insumo),
                     row_resumo("Custo Fixo (Tempo):", lbl_custo_fixo),
-                    row_resumo("Taxa do Cartão:", ft.Text(f"{taxa_cartao}%", color=MARROM)),
+                    row_resumo(
+                        "Taxa do Pagamento:",
+                        ft.Text(
+                            f"{taxas_pagamento[forma_pagamento['valor']]:.2f}%",
+                            color=MARROM
+                        )
+                    ),
                     ft.Divider(color=ROSA),
                     row_resumo("CUSTO TOTAL:", lbl_custo_total),
                     row_resumo("Preço Sugerido:", lbl_preco_sugerido),
@@ -934,6 +966,7 @@ def main(page: ft.Page):
                             dd_receita,
                             ft.Row(controls=[tf_qtd_emb, tf_custo_emb]),
                             ft.Row(controls=[tf_markup_ideal, tf_margem_minima]),
+                            dd_forma_pagamento,
                             tf_preco_praticado,
                             painel_resultados,
                             ft.Container(
@@ -2717,8 +2750,7 @@ def main(page: ft.Page):
             faturamento_row = conexao.execute("SELECT valor FROM configuracoes WHERE chave = 'faturamento_mensal'").fetchone()
             faturamento_atual = faturamento_row["valor"] if faturamento_row else "2000.00"
 
-            taxa_row = conexao.execute("SELECT valor FROM configuracoes WHERE chave = 'taxa_cartao'").fetchone()
-            taxa_atual = taxa_row["valor"] if taxa_row else "0.00"
+            taxas_atuais = obter_taxas_pagamento()
 
         finally:
             conexao.close()
@@ -2743,9 +2775,33 @@ def main(page: ft.Page):
             border_radius=12, expand=True
         )
         
-        campo_taxa = ft.TextField(
-            label="Taxa do Cartão (%)",
-            value=str(taxa_atual),
+        campo_taxa_pix = ft.TextField(
+            label="Taxa Pix (%)",
+            value=str(taxas_atuais["pix"]).replace(".", ","),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
+        )
+        campo_taxa_dinheiro = ft.TextField(
+            label="Taxa Dinheiro (%)",
+            value=str(taxas_atuais["dinheiro"]).replace(".", ","),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
+        )
+        campo_taxa_debito = ft.TextField(
+            label="Taxa Débito (%)",
+            value=str(taxas_atuais["debito"]).replace(".", ","),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
+        )
+        campo_taxa_credito = ft.TextField(
+            label="Crédito à vista (%)",
+            value=str(taxas_atuais["credito_avista"]).replace(".", ","),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
+        )
+        campo_taxa_parcelado = ft.TextField(
+            label="Crédito parcelado (%)",
+            value=str(taxas_atuais["credito_parcelado"]).replace(".", ","),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12, expand=True
         )
@@ -2755,7 +2811,13 @@ def main(page: ft.Page):
         def salvar_configuracoes_acao(e):
             try:
                 val_fat = (campo_faturamento.value or "0").replace(",", ".").strip()
-                val_taxa = (campo_taxa.value or "0").replace(",", ".").strip()
+                taxas = {
+                    "pix": (campo_taxa_pix.value or "0").replace(",", ".").strip(),
+                    "dinheiro": (campo_taxa_dinheiro.value or "0").replace(",", ".").strip(),
+                    "debito": (campo_taxa_debito.value or "0").replace(",", ".").strip(),
+                    "credito_avista": (campo_taxa_credito.value or "0").replace(",", ".").strip(),
+                    "credito_parcelado": (campo_taxa_parcelado.value or "0").replace(",", ".").strip(),
+                }
 
                 if float(val_fat) <= 0:
                     mensagem_custos.value = "Informe um faturamento maior que zero."
@@ -2765,11 +2827,11 @@ def main(page: ft.Page):
                 conexao = obter_conexao()
                 try:
                     conexao.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('faturamento_mensal', ?)", (val_fat,))
-                    conexao.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('taxa_cartao', ?)", (val_taxa,))
                     conexao.commit()
                 finally:
                     conexao.close()
 
+                salvar_taxas_pagamento(taxas)
                 abrir_custos_fixos()
             except Exception as err:
                 mensagem_custos.value = f"Erro ao atualizar: {err}"
@@ -3052,7 +3114,11 @@ def main(page: ft.Page):
                                     ]
                                 ),
                             ),
-                            ft.Row(controls=[campo_faturamento, campo_taxa]),
+                            campo_faturamento,
+                            ft.Text("TAXAS POR FORMA DE PAGAMENTO", weight=ft.FontWeight.BOLD, color=MARROM, size=13),
+                            ft.Row(controls=[campo_taxa_pix, campo_taxa_dinheiro]),
+                            ft.Row(controls=[campo_taxa_debito, campo_taxa_credito]),
+                            campo_taxa_parcelado,
                             mensagem_custos,
                             ft.Container(
                                 width=380, padding=12, bgcolor=ROSA, border_radius=12, on_click=salvar_configuracoes_acao,
