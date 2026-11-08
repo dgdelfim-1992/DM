@@ -1734,6 +1734,7 @@ def obter_dados_painel():
             "aguardando_retorno": contagens.get("Enviado", 0),
             "aprovados": contagens.get("Aprovado", 0),
             "em_elaboracao": contagens.get("Em elaboração", 0),
+            "recusados": contagens.get("Recusado", 0),
             "entregas_proximos_7_dias": quantidade_entregas,
             "entregas": entregas,
             "atividades": atividades,
