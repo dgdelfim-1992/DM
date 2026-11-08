@@ -865,6 +865,33 @@ def main(page: ft.Page):
         )
         lbl_markup_aplicado = ft.Text("0,0%", weight=ft.FontWeight.BOLD, color=MARROM)
 
+        dd_tipo_desconto = ft.Dropdown(
+            label="Tipo de desconto",
+            value="percentual",
+            options=[
+                ft.dropdown.Option("percentual", "Porcentagem (%)"),
+                ft.dropdown.Option("valor", "Valor em reais (R$)"),
+            ],
+            border_radius=12,
+            expand=True,
+        )
+        tf_desconto = ft.TextField(
+            label="Desconto",
+            value="0",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12,
+            expand=True,
+        )
+        lbl_preco_original_desconto = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_valor_desconto = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=ROSA)
+        lbl_preco_com_desconto = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_alerta_desconto = ft.Text(
+            "Informe um desconto para simular o resultado.",
+            size=12,
+            color=TEXTO_SECUNDARIO,
+        )
+        linhas_desconto = []
+
         linhas_comparativo = []
         controles_comparativo = []
 
@@ -882,6 +909,18 @@ def main(page: ft.Page):
                 "lucro": lbl_lucro,
                 "margem": lbl_margem_modalidade,
                 "status": lbl_status_modalidade,
+            })
+
+            lbl_liquido_desconto = ft.Text("R$ 0,00", size=12, weight=ft.FontWeight.BOLD, color=MARROM)
+            lbl_lucro_desconto = ft.Text("R$ 0,00", size=12, color=MARROM)
+            lbl_margem_desconto = ft.Text("0,0%", size=12, weight=ft.FontWeight.BOLD, color=MARROM)
+            lbl_status_desconto = ft.Text("Aguardando simulação", size=11, color=TEXTO_SECUNDARIO)
+            linhas_desconto.append({
+                "chave": chave,
+                "liquido": lbl_liquido_desconto,
+                "lucro": lbl_lucro_desconto,
+                "margem": lbl_margem_desconto,
+                "status": lbl_status_desconto,
             })
 
             controles_comparativo.append(
@@ -990,6 +1029,60 @@ def main(page: ft.Page):
                     )
                     linha["status"].color = "#2E7D32" if dentro_margem else "#C62828"
 
+                # Simulação de desconto sobre o preço de referência.
+                desconto_informado = float((tf_desconto.value or "0").replace(",", "."))
+                if desconto_informado < 0:
+                    raise ValueError("O desconto não pode ser negativo.")
+
+                if dd_tipo_desconto.value == "percentual":
+                    if desconto_informado >= 100:
+                        raise ValueError("O desconto percentual deve ser menor que 100%.")
+                    valor_desconto = preco_referencia * desconto_informado / 100
+                else:
+                    valor_desconto = desconto_informado
+
+                if valor_desconto > preco_referencia:
+                    raise ValueError("O desconto não pode ser maior que o preço do produto.")
+
+                preco_com_desconto = preco_referencia - valor_desconto
+                lbl_preco_original_desconto.value = formatar_reais(preco_referencia)
+                lbl_valor_desconto.value = formatar_reais(valor_desconto)
+                lbl_preco_com_desconto.value = formatar_reais(preco_com_desconto)
+
+                if valor_desconto <= 0:
+                    lbl_alerta_desconto.value = "Sem desconto aplicado. Informe um valor para simular uma promoção."
+                    lbl_alerta_desconto.color = TEXTO_SECUNDARIO
+                else:
+                    margens_desconto = []
+                    for linha in linhas_desconto:
+                        taxa = float(taxas_pagamento.get(linha["chave"], 0))
+                        valor_taxa = preco_com_desconto * taxa / 100
+                        valor_liquido = preco_com_desconto - valor_taxa
+                        lucro = valor_liquido - custo_total
+                        margem = (lucro / preco_com_desconto * 100) if preco_com_desconto > 0 else -100
+                        dentro_margem = margem >= margem_minima
+
+                        linha["liquido"].value = formatar_reais(valor_liquido)
+                        linha["lucro"].value = formatar_reais(lucro)
+                        linha["margem"].value = f"{margem:.1f}%".replace(".", ",")
+                        linha["margem"].color = "#2E7D32" if dentro_margem else "#C62828"
+                        linha["status"].value = (
+                            "Dentro da margem mínima"
+                            if dentro_margem else "Abaixo da margem mínima"
+                        )
+                        linha["status"].color = "#2E7D32" if dentro_margem else "#C62828"
+                        margens_desconto.append(dentro_margem)
+
+                    if all(margens_desconto):
+                        lbl_alerta_desconto.value = "Desconto viável: todas as formas de pagamento permanecem dentro da margem mínima."
+                        lbl_alerta_desconto.color = "#2E7D32"
+                    elif any(margens_desconto):
+                        lbl_alerta_desconto.value = "Atenção: o desconto deixa algumas formas de pagamento abaixo da margem mínima."
+                        lbl_alerta_desconto.color = "#C77700"
+                    else:
+                        lbl_alerta_desconto.value = "Não recomendado: todas as formas de pagamento ficam abaixo da margem mínima."
+                        lbl_alerta_desconto.color = "#C62828"
+
             except Exception as err:
                 lbl_preco_comparacao.value = f"Não foi possível atualizar: {err}"
 
@@ -999,6 +1092,8 @@ def main(page: ft.Page):
         tf_qtd_emb.on_change = atualizar_calculos
         tf_custo_emb.on_change = atualizar_calculos
         tf_preco_praticado.on_change = atualizar_calculos
+        dd_tipo_desconto.on_change = atualizar_calculos
+        tf_desconto.on_change = atualizar_calculos
 
         def salvar_form(e):
             try:
@@ -1060,6 +1155,59 @@ def main(page: ft.Page):
                     row_resumo("Markup sobre o preço de comparação:", lbl_markup_aplicado),
                     ft.Divider(color=ROSA),
                     lbl_preco_comparacao,
+                ],
+            ),
+        )
+
+        painel_desconto = ft.Container(
+            bgcolor=ROSA_CLARO,
+            padding=14,
+            border_radius=12,
+            content=ft.Column(
+                spacing=10,
+                controls=[
+                    ft.Text(
+                        "SIMULAÇÃO DE DESCONTOS",
+                        size=12,
+                        weight=ft.FontWeight.BOLD,
+                        color=MARROM,
+                    ),
+                    ft.Text(
+                        "Simule uma promoção em percentual ou em reais. "
+                        "O cálculo considera novamente as taxas de cada forma de pagamento.",
+                        size=12,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                    ft.Row(controls=[dd_tipo_desconto, tf_desconto]),
+                    row_resumo("Preço original:", lbl_preco_original_desconto),
+                    row_resumo("Valor do desconto:", lbl_valor_desconto),
+                    row_resumo("Preço com desconto:", lbl_preco_com_desconto),
+                    ft.Divider(color=ROSA),
+                    ft.Text("Resultado por forma de pagamento", weight=ft.FontWeight.BOLD, color=MARROM, size=12),
+                    *[
+                        ft.Container(
+                            bgcolor=BRANCO,
+                            padding=10,
+                            border_radius=10,
+                            content=ft.Column(
+                                spacing=4,
+                                controls=[
+                                    ft.Text(nome, weight=ft.FontWeight.BOLD, color=MARROM),
+                                    row_resumo("Valor líquido:", linha["liquido"]),
+                                    row_resumo("Lucro estimado:", linha["lucro"]),
+                                    row_resumo("Margem:", linha["margem"]),
+                                    linha["status"],
+                                ],
+                            ),
+                        )
+                        for nome, linha in [
+                            (nome, linha)
+                            for nome, chave in modalidades
+                            for linha in linhas_desconto
+                            if linha["chave"] == chave
+                        ]
+                    ],
+                    lbl_alerta_desconto,
                 ],
             ),
         )
@@ -1131,6 +1279,7 @@ def main(page: ft.Page):
                             tf_preco_praticado,
                             painel_resultados,
                             painel_comparativo,
+                            painel_desconto,
                             ft.Container(
                                 width=380,
                                 padding=14,
