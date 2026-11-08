@@ -1029,7 +1029,7 @@ def main(page: ft.Page):
                                 ft.Column(expand=True, spacing=2, controls=[
                                     ft.Text(nome, weight=ft.FontWeight.BOLD, color=MARROM),
                                     ft.Text(f"Taxa: {taxa:.2f}%  •  Margem: {margem:.1f}%", size=11, color=TEXTO_SECUNDARIO),
-                                    ft.Text("Dentro da margem mínima" if dentro else "Abaixo da margem mínima", size=10, color="#2E7D32" if dentro else "#C62828),
+                                    ft.Text("Dentro da margem mínima" if dentro else "Abaixo da margem mínima", size=10, color="#2E7D32" if dentro else "#C62828"),
                                 ]),
                                 ft.Text(formatar_reais(total), weight=ft.FontWeight.BOLD, color=MARROM),
                             ]
