@@ -455,7 +455,6 @@ def main(page: ft.Page):
                 height=142,
                 padding=14,
                 bgcolor=BRANCO,
-                border=ft.border.all(1, ROSA_CLARO),
                 border_radius=18,
                 on_click=acao,
                 content=ft.Column(
@@ -2455,7 +2454,6 @@ def main(page: ft.Page):
                 ft.Container(
                     bgcolor=BRANCO,
                     padding=18,
-                    border=ft.border.all(1, ROSA_CLARO),
                     border_radius=18,
                     on_click=lambda e, item_id=ingrediente_id:
                         abrir_edicao_ingrediente(item_id),
@@ -3127,7 +3125,6 @@ def main(page: ft.Page):
                 ft.Container(
                     bgcolor=BRANCO,
                     padding=18,
-                    border=ft.border.all(1, ROSA_CLARO),
                     border_radius=18,
                     content=ft.Column(
                         spacing=10,
@@ -5110,7 +5107,6 @@ def criar_atalho(icone, titulo, descricao, cor, acao=None):
         expand=True,
         bgcolor="#FFFFFF",
         padding=16,
-        border=ft.border.all(1, "#F1DFDC"),
         border_radius=18,
         on_click=acao,
         content=ft.Column(
