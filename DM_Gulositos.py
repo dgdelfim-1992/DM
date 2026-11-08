@@ -773,111 +773,227 @@ def main(page: ft.Page):
 
         conexao = obter_conexao()
         try:
-            receitas = conexao.execute("SELECT * FROM receitas WHERE ativo = 1 AND tipo = 'PRODUTO' ORDER BY nome").fetchall()
+            receitas = conexao.execute(
+                "SELECT * FROM receitas WHERE ativo = 1 AND tipo = 'PRODUTO' ORDER BY nome"
+            ).fetchall()
         finally:
             conexao.close()
-            
+
         if not receitas:
             mostrar_aviso("Cadastre um Produto Final primeiro.")
             return
 
         taxas_pagamento = obter_taxas_pagamento()
-        forma_pagamento = {"valor": "credito_avista"}
         margem_minima = obter_margem_minima()
         markup_ideal = obter_markup_ideal()
 
+        modalidades = [
+            ("Dinheiro", "dinheiro"),
+            ("Pix", "pix"),
+            ("Débito", "debito"),
+            ("Crédito à vista", "credito_avista"),
+            ("Crédito parcelado", "credito_parcelado"),
+        ]
+
+        def formatar_reais(valor):
+            return (
+                f"R$ {valor:,.2f}"
+                .replace(",", "X")
+                .replace(".", ",")
+                .replace("X", ".")
+            )
+
         dd_receita = ft.Dropdown(
             label="Produto Final",
-            options=[ft.dropdown.Option(str(r['id']), r['nome']) for r in receitas],
-            value=str(dados_atuais['receita_id']) if em_edicao else str(receitas[0]['id']),
-            border_radius=12
+            options=[ft.dropdown.Option(str(r["id"]), r["nome"]) for r in receitas],
+            value=str(dados_atuais["receita_id"]) if em_edicao else str(receitas[0]["id"]),
+            border_radius=12,
         )
-        
+
         tf_qtd_emb = ft.TextField(
-            label="Qtd de Produto na Embalagem",
-            value=str(dados_atuais['quantidade_embalagem']) if em_edicao else "1",
-            keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
+            label="Qtd. de Produto na Embalagem",
+            value=str(dados_atuais["quantidade_embalagem"]) if em_edicao else "1",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12,
+            expand=True,
         )
-        
+
         tf_custo_emb = ft.TextField(
             label="Embalagem + Sacola (R$)",
-            value=f"{dados_atuais['custo_embalagem_centavos']/100:.2f}".replace('.', ',') if em_edicao else "0,00",
-            keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
-        )
-
-        info_markup_ideal = ft.Text(
-            f"Markup ideal configurado: {markup_ideal:.2f}%".replace(".", ","),
-            color=MARROM, size=13, weight=ft.FontWeight.BOLD
-        )
-        info_margem_minima = ft.Text(
-            f"Margem mínima exigida: {margem_minima:.2f}%".replace(".", ","),
-            color=MARROM, size=13, weight=ft.FontWeight.BOLD
-        )
-
-        dd_forma_pagamento = ft.Dropdown(
-            label="Forma de Pagamento",
-            value="credito_avista",
-            options=[
-                ft.dropdown.Option("pix", "Pix"),
-                ft.dropdown.Option("dinheiro", "Dinheiro"),
-                ft.dropdown.Option("debito", "Cartão de débito"),
-                ft.dropdown.Option("credito_avista", "Crédito à vista"),
-                ft.dropdown.Option("credito_parcelado", "Crédito parcelado"),
-            ],
+            value=(
+                f"{dados_atuais['custo_embalagem_centavos'] / 100:.2f}".replace(".", ",")
+                if em_edicao else "0,00"
+            ),
+            keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12,
+            expand=True,
         )
 
         tf_preco_praticado = ft.TextField(
             label="Preço de Venda Praticado (R$)",
-            value=f"{dados_atuais['preco_praticado_centavos']/100:.2f}".replace('.', ',') if em_edicao else "0,00",
-            keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
+            value=(
+                f"{dados_atuais['preco_praticado_centavos'] / 100:.2f}".replace(".", ",")
+                if em_edicao else "0,00"
+            ),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12,
+            expand=True,
         )
 
-        # Result Labels
-        lbl_insumo = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, color=MARROM)
-        lbl_custo_fixo = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, color=MARROM)
-        lbl_custo_total = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, size=16, color=ROSA)
-        lbl_preco_sugerido = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, size=16, color=MARROM)
-        lbl_markup_aplicado = ft.Text("0%", weight=ft.FontWeight.BOLD, color=MARROM)
-        lbl_status = ft.Text("...", weight=ft.FontWeight.BOLD, color=MARROM)
-        lbl_margem = ft.Text("R$ 0.00", weight=ft.FontWeight.BOLD, color=MARROM)
+        info_markup_ideal = ft.Text(
+            f"Markup ideal configurado: {markup_ideal:.2f}%".replace(".", ","),
+            color=MARROM,
+            size=13,
+            weight=ft.FontWeight.BOLD,
+        )
+        info_margem_minima = ft.Text(
+            f"Margem mínima exigida: {margem_minima:.2f}%".replace(".", ","),
+            color=MARROM,
+            size=13,
+            weight=ft.FontWeight.BOLD,
+        )
+
+        lbl_insumo = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_custo_fixo = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_custo_total = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, size=16, color=ROSA)
+        lbl_preco_sugerido = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, size=16, color=MARROM)
+        lbl_preco_comparacao = ft.Text(
+            "Aguardando cálculo...",
+            color=TEXTO_SECUNDARIO,
+            size=12,
+        )
+        lbl_markup_aplicado = ft.Text("0,0%", weight=ft.FontWeight.BOLD, color=MARROM)
+
+        linhas_comparativo = []
+        controles_comparativo = []
+
+        for nome, chave in modalidades:
+            lbl_taxa = ft.Text("0,00%", size=12, color=TEXTO_SECUNDARIO)
+            lbl_liquido = ft.Text("R$ 0,00", size=13, weight=ft.FontWeight.BOLD, color=MARROM)
+            lbl_lucro = ft.Text("R$ 0,00", size=12, color=MARROM)
+            lbl_margem_modalidade = ft.Text("0,0%", size=13, weight=ft.FontWeight.BOLD, color=MARROM)
+            lbl_status_modalidade = ft.Text("—", size=11, color=TEXTO_SECUNDARIO)
+
+            linhas_comparativo.append({
+                "chave": chave,
+                "taxa": lbl_taxa,
+                "liquido": lbl_liquido,
+                "lucro": lbl_lucro,
+                "margem": lbl_margem_modalidade,
+                "status": lbl_status_modalidade,
+            })
+
+            controles_comparativo.append(
+                ft.Container(
+                    padding=12,
+                    bgcolor=BRANCO,
+                    border_radius=10,
+                    content=ft.Column(
+                        spacing=5,
+                        controls=[
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text(nome, weight=ft.FontWeight.BOLD, color=MARROM),
+                                    lbl_taxa,
+                                ],
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Valor líquido", size=12, color=TEXTO_SECUNDARIO),
+                                    lbl_liquido,
+                                ],
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Lucro estimado", size=12, color=TEXTO_SECUNDARIO),
+                                    lbl_lucro,
+                                ],
+                            ),
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Text("Margem", size=12, color=TEXTO_SECUNDARIO),
+                                    lbl_margem_modalidade,
+                                ],
+                            ),
+                            lbl_status_modalidade,
+                        ],
+                    ),
+                )
+            )
 
         def atualizar_calculos(e=None):
             try:
                 rec_id = int(dd_receita.value) if dd_receita.value else 0
                 qtd_emb = float((tf_qtd_emb.value or "0").replace(",", "."))
                 custo_emb = float((tf_custo_emb.value or "0").replace(",", ".")) * 100
-                mkp_ideal = markup_ideal
-                margem_min = margem_minima
-                preco_prat = float((tf_preco_praticado.value or "0").replace(",", ".")) * 100
-                
-                taxa_selecionada = taxas_pagamento[forma_pagamento["valor"]]
-                res = calcular_simulacao_precificacao(rec_id, qtd_emb, custo_emb, mkp_ideal, preco_prat, taxa_selecionada, margem_min)
-                if res:
-                    lbl_insumo.value = f"R$ {res['custo_insumo']:.2f}"
-                    lbl_custo_fixo.value = f"R$ {res['custo_fixo']:.2f}"
-                    lbl_custo_total.value = f"R$ {res['custo_total']:.2f}"
-                    lbl_preco_sugerido.value = f"R$ {res['preco_sugerido']:.2f}"
-                    lbl_markup_aplicado.value = f"{res['markup_aplicado_pct']:.1f}%"
-                    lbl_margem.value = f"R$ {res['margem_contribuicao']:.2f} ({res['margem_real_pct']:.1f}%)"
-                    
-                    lbl_status.value = res['status']
-                    if res['status'] == "Dentro da Margem":
-                        lbl_status.color = "#2E7D32" # Green
-                    else:
-                        lbl_status.color = "#C62828" # Red
-                else:
-                    lbl_status.value = "Erro no calculo"
-                    
+                preco_praticado = float(
+                    (tf_preco_praticado.value or "0").replace(",", ".")
+                )
+
+                # O cálculo-base não inclui taxa: as taxas são comparadas separadamente abaixo.
+                resultado = calcular_simulacao_precificacao(
+                    rec_id,
+                    qtd_emb,
+                    custo_emb,
+                    markup_ideal,
+                    0,
+                    0,
+                    margem_minima,
+                )
+
+                if not resultado:
+                    raise ValueError("Não foi possível calcular os custos do produto.")
+
+                custo_total = resultado["custo_total"]
+                preco_sugerido = resultado["preco_sugerido"]
+                usar_preco_praticado = preco_praticado > 0
+                preco_referencia = preco_praticado if usar_preco_praticado else preco_sugerido
+
+                lbl_insumo.value = formatar_reais(resultado["custo_insumo"])
+                lbl_custo_fixo.value = formatar_reais(resultado["custo_fixo"])
+                lbl_custo_total.value = formatar_reais(custo_total)
+                lbl_preco_sugerido.value = formatar_reais(preco_sugerido)
+
+                origem_preco = "preço praticado" if usar_preco_praticado else "preço sugerido"
+                lbl_preco_comparacao.value = (
+                    f"Comparação calculada sobre o {origem_preco}: "
+                    f"{formatar_reais(preco_referencia)}"
+                )
+
+                markup_aplicado = (
+                    ((preco_referencia - custo_total) / custo_total) * 100
+                    if custo_total > 0 else 0
+                )
+                lbl_markup_aplicado.value = f"{markup_aplicado:.1f}%".replace(".", ",")
+
+                for linha in linhas_comparativo:
+                    taxa = float(taxas_pagamento.get(linha["chave"], 0))
+                    valor_taxa = preco_referencia * taxa / 100
+                    valor_liquido = preco_referencia - valor_taxa
+                    lucro = valor_liquido - custo_total
+                    margem = (lucro / preco_referencia * 100) if preco_referencia > 0 else 0
+
+                    dentro_margem = margem >= margem_minima
+                    linha["taxa"].value = f"Taxa: {taxa:.2f}%".replace(".", ",")
+                    linha["liquido"].value = formatar_reais(valor_liquido)
+                    linha["lucro"].value = formatar_reais(lucro)
+                    linha["margem"].value = f"{margem:.1f}%".replace(".", ",")
+                    linha["margem"].color = "#2E7D32" if dentro_margem else "#C62828"
+                    linha["status"].value = (
+                        "Dentro da margem mínima"
+                        if dentro_margem else "Abaixo da margem mínima"
+                    )
+                    linha["status"].color = "#2E7D32" if dentro_margem else "#C62828"
+
             except Exception as err:
-                pass
+                lbl_preco_comparacao.value = f"Não foi possível atualizar: {err}"
+
             page.update()
 
-        def alterar_forma_pagamento(e):
-            forma_pagamento["valor"] = dd_forma_pagamento.value
-            atualizar_calculos()
-
-        dd_forma_pagamento.on_change = alterar_forma_pagamento
         dd_receita.on_change = atualizar_calculos
         tf_qtd_emb.on_change = atualizar_calculos
         tf_custo_emb.on_change = atualizar_calculos
@@ -887,27 +1003,40 @@ def main(page: ft.Page):
             try:
                 rec_id = int(dd_receita.value)
                 qtd_emb = float((tf_qtd_emb.value or "0").replace(",", "."))
-                custo_emb = int(float((tf_custo_emb.value or "0").replace(",", ".")) * 100)
-                mkp_ideal = markup_ideal
-                margem_min = margem_minima
-                preco_prat = int(float((tf_preco_praticado.value or "0").replace(",", ".")) * 100)
+                custo_emb = int(
+                    float((tf_custo_emb.value or "0").replace(",", ".")) * 100
+                )
+                preco_prat = int(
+                    float((tf_preco_praticado.value or "0").replace(",", ".")) * 100
+                )
 
-                if margem_min < 0 or margem_min >= 100:
+                if margem_minima < 0 or margem_minima >= 100:
                     raise ValueError("A margem mínima deve estar entre 0% e 99,99%.")
 
-                taxa_selecionada = taxas_pagamento[forma_pagamento["valor"]]
+                # Mantém o crédito à vista como taxa de referência do histórico legado
+                # e como critério atual de validação do salvamento.
                 salvar_precificacao_v2(
-                    precificacao_id, rec_id, qtd_emb, custo_emb,
-                    mkp_ideal, preco_prat, margem_min, taxa_selecionada
+                    precificacao_id,
+                    rec_id,
+                    qtd_emb,
+                    custo_emb,
+                    markup_ideal,
+                    preco_prat,
+                    margem_minima,
+                    taxas_pagamento["credito_avista"],
                 )
                 abrir_precificacao()
             except Exception as err:
                 mostrar_aviso(f"Erro ao salvar: {err}")
 
-        atualizar_calculos() # Inicializa os valores
-
         def row_resumo(label, control):
-            return ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[ft.Text(label, color=TEXTO_SECUNDARIO, size=13), control])
+            return ft.Row(
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                controls=[
+                    ft.Text(label, color=TEXTO_SECUNDARIO, size=13),
+                    control,
+                ],
+            )
 
         painel_resultados = ft.Container(
             bgcolor=ROSA_CLARO,
@@ -916,44 +1045,71 @@ def main(page: ft.Page):
             content=ft.Column(
                 spacing=8,
                 controls=[
-                    ft.Text("RESULTADOS", size=11, weight=ft.FontWeight.BOLD, color=MARROM),
-                    row_resumo("Custo c/ Insumo:", lbl_insumo),
-                    row_resumo("Custo Fixo (Tempo):", lbl_custo_fixo),
-                    row_resumo(
-                        "Taxa do Pagamento:",
-                        ft.Text(
-                            f"{taxas_pagamento[forma_pagamento['valor']]:.2f}%",
-                            color=MARROM
-                        )
+                    ft.Text(
+                        "COMPOSIÇÃO DO CUSTO",
+                        size=11,
+                        weight=ft.FontWeight.BOLD,
+                        color=MARROM,
                     ),
+                    row_resumo("Custo dos insumos:", lbl_insumo),
+                    row_resumo("Custo fixo (tempo):", lbl_custo_fixo),
                     ft.Divider(color=ROSA),
                     row_resumo("CUSTO TOTAL:", lbl_custo_total),
-                    row_resumo("Preço Sugerido:", lbl_preco_sugerido),
+                    row_resumo("Preço sugerido:", lbl_preco_sugerido),
+                    row_resumo("Markup sobre o preço de comparação:", lbl_markup_aplicado),
                     ft.Divider(color=ROSA),
-                    row_resumo("Markup Aplicado:", lbl_markup_aplicado),
-                    row_resumo("Margem de Contribuição:", lbl_margem),
-                    ft.Container(
-                        padding=10, border_radius=8, bgcolor=BRANCO,
-                        content=ft.Row(
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            controls=[ft.Text("STATUS: ", weight=ft.FontWeight.BOLD), lbl_status]
-                        )
-                    )
-                ]
-            )
+                    lbl_preco_comparacao,
+                ],
+            ),
+        )
+
+        painel_comparativo = ft.Container(
+            bgcolor=ROSA_CLARO,
+            padding=14,
+            border_radius=12,
+            content=ft.Column(
+                spacing=10,
+                controls=[
+                    ft.Text(
+                        "SIMULAÇÃO POR FORMA DE PAGAMENTO",
+                        size=12,
+                        weight=ft.FontWeight.BOLD,
+                        color=MARROM,
+                    ),
+                    ft.Text(
+                        "Compare quanto sobra em cada modalidade. "
+                        "As taxas são configuradas em Custos Fixos.",
+                        size=12,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                    *controles_comparativo,
+                ],
+            ),
         )
 
         tela_form = ft.Column(
-            expand=True, scroll=ft.ScrollMode.AUTO, spacing=14,
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+            spacing=14,
             controls=[
                 ft.Container(
                     padding=ft.Padding.only(left=15, right=20, top=20, bottom=5),
                     content=ft.Row(
                         controls=[
-                            ft.Container(padding=8, border_radius=10, on_click=abrir_precificacao, content=ft.Icon(ft.Icons.ARROW_BACK, color=MARROM, size=24)),
-                            ft.Text("Editar Preço" if em_edicao else "Novo Preço", size=20, weight=ft.FontWeight.BOLD, color=MARROM),
-                        ]
-                    )
+                            ft.Container(
+                                padding=8,
+                                border_radius=10,
+                                on_click=abrir_precificacao,
+                                content=ft.Icon(ft.Icons.ARROW_BACK, color=MARROM, size=24),
+                            ),
+                            ft.Text(
+                                "Editar Preço" if em_edicao else "Nova Precificação",
+                                size=20,
+                                weight=ft.FontWeight.BOLD,
+                                color=MARROM,
+                            ),
+                        ],
+                    ),
                 ),
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=18),
@@ -963,24 +1119,42 @@ def main(page: ft.Page):
                             dd_receita,
                             ft.Row(controls=[tf_qtd_emb, tf_custo_emb]),
                             ft.Container(
-                                bgcolor=ROSA_CLARO, padding=12, border_radius=10,
+                                bgcolor=ROSA_CLARO,
+                                padding=12,
+                                border_radius=10,
                                 content=ft.Column(
                                     spacing=5,
-                                    controls=[info_markup_ideal, info_margem_minima]
-                                )
+                                    controls=[info_markup_ideal, info_margem_minima],
+                                ),
                             ),
-                            dd_forma_pagamento,
                             tf_preco_praticado,
                             painel_resultados,
+                            painel_comparativo,
                             ft.Container(
-                                width=380, padding=14, bgcolor=ROSA, border_radius=12, on_click=salvar_form,
-                                content=ft.Row(alignment=ft.MainAxisAlignment.CENTER, controls=[ft.Icon(ft.Icons.SAVE_OUTLINED, color=BRANCO), ft.Text("Salvar Precificação", color=BRANCO, weight=ft.FontWeight.BOLD)])
-                            )
-                        ]
-                    )
-                )
-            ]
+                                width=380,
+                                padding=14,
+                                bgcolor=ROSA,
+                                border_radius=12,
+                                on_click=salvar_form,
+                                content=ft.Row(
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                    controls=[
+                                        ft.Icon(ft.Icons.SAVE_OUTLINED, color=BRANCO),
+                                        ft.Text(
+                                            "Salvar Precificação",
+                                            color=BRANCO,
+                                            weight=ft.FontWeight.BOLD,
+                                        ),
+                                    ],
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
+            ],
         )
+
+        atualizar_calculos()
         page.controls.clear()
         page.add(tela_form)
         page.update()
