@@ -475,15 +475,20 @@ def main(page: ft.Page):
     # ==================================================
     def abrir_agenda_producao(e=None):
         filtro = {"valor": "Todos"}
+        filtro_data = {"valor": "Todas"}
 
         def formatar_reais(valor):
             return ("R$ {:,.2f}".format(valor)).replace(",", "X").replace(".", ",").replace("X", ".")
 
-        def formatar_data(valor):
+        def obter_data_entrega(valor):
             try:
-                return datetime.strptime(valor[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+                return datetime.strptime(valor[:10], "%Y-%m-%d").date()
             except (ValueError, TypeError):
-                return valor or "Sem data"
+                return None
+
+        def formatar_data(valor):
+            data = obter_data_entrega(valor)
+            return data.strftime("%d/%m/%Y") if data else (valor or "Sem data")
 
         conteudo = ft.Column(spacing=10)
 
@@ -491,23 +496,57 @@ def main(page: ft.Page):
             filtro["valor"] = valor
             montar_agenda()
 
+        def aplicar_filtro_data(valor):
+            filtro_data["valor"] = valor
+            montar_agenda()
+
         def montar_agenda():
             registros = listar_agenda_producao()
+            hoje = datetime.now().date()
+            limite_proximos_dias = hoje + timedelta(days=7)
+
             if filtro["valor"] != "Todos":
                 registros = [
                     registro for registro in registros
-                    if registro["status_producao"] == filtro["valor"]
+                    if (registro["status_producao"] or "Pendente") == filtro["valor"]
                 ]
 
-            hoje = datetime.now().date()
+            if filtro_data["valor"] == "Hoje":
+                registros = [
+                    registro for registro in registros
+                    if obter_data_entrega(registro["data_entrega"]) == hoje
+                ]
+            elif filtro_data["valor"] == "Próximos 7 dias":
+                registros = [
+                    registro for registro in registros
+                    if (obter_data_entrega(registro["data_entrega"]) is not None
+                        and hoje < obter_data_entrega(registro["data_entrega"]) <= limite_proximos_dias)
+                ]
+            elif filtro_data["valor"] == "Atrasadas":
+                registros = [
+                    registro for registro in registros
+                    if (obter_data_entrega(registro["data_entrega"]) is not None
+                        and obter_data_entrega(registro["data_entrega"]) < hoje
+                        and (registro["status_producao"] or "Pendente") != "Concluída")
+                ]
+
+            # Entregas mais próximas aparecem primeiro; registros sem data ficam no final.
+            registros.sort(
+                key=lambda registro: (
+                    obter_data_entrega(registro["data_entrega"]) is None,
+                    obter_data_entrega(registro["data_entrega"]) or hoje,
+                )
+            )
+
             cartoes = []
             for registro in registros:
                 data_texto = formatar_data(registro["data_entrega"])
-                try:
-                    data_entrega_obj = datetime.strptime(registro["data_entrega"][:10], "%Y-%m-%d").date()
-                    atrasada = data_entrega_obj < hoje and registro["status_producao"] != "Concluída"
-                except (ValueError, TypeError):
-                    atrasada = False
+                data_entrega_obj = obter_data_entrega(registro["data_entrega"])
+                atrasada = (
+                    data_entrega_obj is not None
+                    and data_entrega_obj < hoje
+                    and (registro["status_producao"] or "Pendente") != "Concluída"
+                )
 
                 try:
                     itens = json.loads(registro["itens_json"] or "[]")
@@ -596,6 +635,7 @@ def main(page: ft.Page):
                 )
 
             conteudo.controls = [
+                ft.Text("Filtrar por status", color=MARROM, weight=ft.FontWeight.BOLD, size=13),
                 ft.Row(
                     wrap=True,
                     spacing=8,
@@ -607,6 +647,20 @@ def main(page: ft.Page):
                             color=BRANCO if filtro["valor"] == nome else MARROM,
                         )
                         for nome in ["Todos", "Pendente", "Em produção", "Concluída"]
+                    ],
+                ),
+                ft.Text("Filtrar por data de entrega", color=MARROM, weight=ft.FontWeight.BOLD, size=13),
+                ft.Row(
+                    wrap=True,
+                    spacing=8,
+                    controls=[
+                        ft.Button(
+                            nome,
+                            on_click=lambda ev, valor=nome: aplicar_filtro_data(valor),
+                            bgcolor=ROSA if filtro_data["valor"] == nome else ROSA_CLARO,
+                            color=BRANCO if filtro_data["valor"] == nome else MARROM,
+                        )
+                        for nome in ["Todas", "Hoje", "Próximos 7 dias", "Atrasadas"]
                     ],
                 ),
                 *cartoes,
