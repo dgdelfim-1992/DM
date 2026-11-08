@@ -348,30 +348,78 @@ def main(page: ft.Page):
     # ==================================================
 
     def abrir_menu_opcoes(e=None):
+        def criar_card_menu(icone, titulo, descricao, acao):
+            return ft.Container(
+                expand=True,
+                height=142,
+                padding=14,
+                bgcolor=BRANCO,
+                border_radius=16,
+                on_click=acao,
+                content=ft.Column(
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    horizontal_alignment=ft.CrossAxisAlignment.START,
+                    spacing=9,
+                    controls=[
+                        ft.Container(
+                            width=42,
+                            height=42,
+                            border_radius=12,
+                            bgcolor=ROSA_CLARO,
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Icon(icone, color=ROSA, size=23),
+                        ),
+                        ft.Text(titulo, size=14, weight=ft.FontWeight.BOLD, color=MARROM),
+                        ft.Text(descricao, size=10, color=TEXTO_SECUNDARIO),
+                    ],
+                ),
+            )
+
         tela = ft.Column(
             expand=True,
             scroll=ft.ScrollMode.AUTO,
             spacing=16,
             controls=[
                 ft.Container(
-                    padding=ft.Padding.only(left=15, right=20, top=20, bottom=10),
-                    content=ft.Text("Menu Principal", size=24, weight=ft.FontWeight.BOLD, color=MARROM),
+                    padding=ft.Padding.only(left=18, right=18, top=22, bottom=2),
+                    content=ft.Column(
+                        spacing=4,
+                        controls=[
+                            ft.Text("Menu Principal", size=24, weight=ft.FontWeight.BOLD, color=MARROM),
+                            ft.Text("Acesse as ferramentas da sua doceria.", size=12, color=TEXTO_SECUNDARIO),
+                        ],
+                    ),
                 ),
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=18),
                     content=ft.Column(
                         spacing=12,
                         controls=[
-                            criar_atalho(ft.Icons.INVENTORY_2_OUTLINED, "Insumos", "Gerenciar estoque e preços", ROSA, abrir_ingredientes),
-                            criar_atalho(ft.Icons.MENU_BOOK_OUTLINED, "Receitas", "Fichas técnicas e tempos", ROSA, abrir_receitas),
-                            criar_atalho(ft.Icons.CALCULATE_OUTLINED, "Custos Fixos", "Despesas, rateio e taxas", ROSA, abrir_custos_fixos),
-                            criar_atalho(ft.Icons.DESCRIPTION_OUTLINED, "Orçamentos", "Montar e enviar propostas", ROSA, abrir_orcamentos),
-                            criar_atalho(ft.Icons.BAR_CHART_OUTLINED, "Relatórios", "Análise de lucratividade", ROSA, abrir_relatorios),
-                            criar_atalho(ft.Icons.SAVE_OUTLINED, "Backup / Exportar", "Salvar e restaurar dados", ROSA, abrir_tela_backup),
-                        ]
-                    )
-                )
-            ]
+                            ft.Row(
+                                spacing=12,
+                                controls=[
+                                    criar_card_menu(ft.Icons.INVENTORY_2_OUTLINED, "Insumos", "Gerenciar estoque e preços", abrir_ingredientes),
+                                    criar_card_menu(ft.Icons.MENU_BOOK_OUTLINED, "Receitas", "Fichas técnicas e tempos", abrir_receitas),
+                                ],
+                            ),
+                            ft.Row(
+                                spacing=12,
+                                controls=[
+                                    criar_card_menu(ft.Icons.CALCULATE_OUTLINED, "Custos Fixos", "Despesas, rateio e taxas", abrir_custos_fixos),
+                                    criar_card_menu(ft.Icons.DESCRIPTION_OUTLINED, "Orçamentos", "Montar e enviar propostas", abrir_orcamentos),
+                                ],
+                            ),
+                            ft.Row(
+                                spacing=12,
+                                controls=[
+                                    criar_card_menu(ft.Icons.BAR_CHART_OUTLINED, "Relatórios", "Análise de lucratividade", abrir_relatorios),
+                                    criar_card_menu(ft.Icons.SAVE_OUTLINED, "Backup / Exportar", "Salvar e restaurar dados", abrir_tela_backup),
+                                ],
+                            ),
+                        ],
+                    ),
+                ),
+            ],
         )
         indice_atual["valor"] = 2
         navegacao.selected_index = 2
