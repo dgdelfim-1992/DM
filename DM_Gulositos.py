@@ -843,13 +843,43 @@ def main(page: ft.Page):
                             ]),
                             ft.Text(registro["cliente"] or "Cliente não informado", color=TEXTO_SECUNDARIO, size=12),
                             ft.Text(f"Total do orçamento (Pix): {formatar_reais(total)}", weight=ft.FontWeight.BOLD, color=MARROM),
-                            ft.Row(wrap=True, controls=[
-                                ft.TextButton("Abrir / copiar", on_click=lambda ev, oid=registro["id"]: abrir_detalhe_orcamento(oid)),
-                                ft.TextButton("Editar", on_click=lambda ev, oid=registro["id"]: abrir_orcamentos(orcamento_id=oid)),
-                                ft.TextButton("Alterações", on_click=lambda ev, oid=registro["id"]: abrir_historico_versoes(oid)),
-                                ft.TextButton("Marcar enviado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Enviado")),
-                                ft.TextButton("Aprovado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Aprovado")),
-                                ft.TextButton("Recusado", on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Recusado")),
+                            ft.Row(wrap=True, spacing=4, controls=[
+                                ft.IconButton(
+                                    icon=ft.Icons.VISIBILITY,
+                                    tooltip="Abrir / copiar orçamento",
+                                    icon_color=MARROM,
+                                    on_click=lambda ev, oid=registro["id"]: abrir_detalhe_orcamento(oid),
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.EDIT,
+                                    tooltip="Editar orçamento",
+                                    icon_color=MARROM,
+                                    on_click=lambda ev, oid=registro["id"]: abrir_orcamentos(orcamento_id=oid),
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.HISTORY,
+                                    tooltip="Histórico de alterações",
+                                    icon_color=MARROM,
+                                    on_click=lambda ev, oid=registro["id"]: abrir_historico_versoes(oid),
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.SEND,
+                                    tooltip="Marcar como enviado",
+                                    icon_color="#285A83",
+                                    on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Enviado"),
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.CHECK_CIRCLE,
+                                    tooltip="Aprovar orçamento",
+                                    icon_color="#1B5E20",
+                                    on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Aprovado"),
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.CANCEL,
+                                    tooltip="Recusar orçamento",
+                                    icon_color="#A52D35",
+                                    on_click=lambda ev, oid=registro["id"]: mudar_status_orcamento(oid, "Recusado"),
+                                ),
                             ]),
                         ])
                     )
