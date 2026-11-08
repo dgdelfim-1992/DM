@@ -938,100 +938,100 @@ def main(page: ft.Page):
 
     def abrir_ingredientes(e=None):
 
-            ingredientes = listar_ingredientes()
-            alertas = listar_alertas_aumento_ingredientes()
-            cartoes = []
-            painel_alertas = []
+        ingredientes = listar_ingredientes()
+        alertas = listar_alertas_aumento_ingredientes()
+        cartoes = []
+        painel_alertas = []
 
-            if alertas:
-                itens_alerta = []
+        if alertas:
+            itens_alerta = []
 
-                for alerta in alertas:
-                    itens_alerta.append(
-                        ft.Container(
-                            padding=12,
-                            bgcolor="#FFFFFF",
-                            border_radius=10,
-                            content=ft.Column(
-                                spacing=5,
-                                controls=[
-                                    ft.Text(
-                                        alerta["nome"],
-                                        weight=ft.FontWeight.BOLD,
-                                        color=MARROM,
-                                        size=14,
-                                    ),
-                                    ft.Text(
-                                        f"Aumento de "
-                                        f"{alerta['aumento_percentual']:.1f}%",
-                                        color="#C62828",
-                                        weight=ft.FontWeight.BOLD,
-                                        size=13,
-                                    ),
-                                    ft.Text(
-                                        f"Custo por {alerta['unidade_base']}: "
-                                        f"R$ {alerta['custo_anterior']:.5f} "
-                                        f"→ R$ {alerta['custo_atual']:.5f}",
-                                        color=TEXTO_SECUNDARIO,
-                                        size=12,
-                                    ),
-                                    ft.Text(
-                                        f"Embalagem: R$ "
-                                        f"{alerta['preco_anterior']:.2f} "
-                                        f"→ R$ {alerta['preco_atual']:.2f}",
-                                        color=TEXTO_SECUNDARIO,
-                                        size=12,
-                                    ),
-                                ],
-                            ),
-                        )
-                    )
-
-                painel_alertas.append(
+            for alerta in alertas:
+                itens_alerta.append(
                     ft.Container(
-                        padding=ft.Padding.symmetric(horizontal=18),
-                        content=ft.Container(
-                            padding=14,
-                            bgcolor="#FCE8E6",
-                            border_radius=14,
-                            content=ft.Column(
-                                spacing=10,
-                                controls=[
-                                    ft.Row(
-                                        spacing=8,
-                                        controls=[
-                                            ft.Icon(
-                                                ft.Icons.WARNING_AMBER_ROUNDED,
-                                                color="#C62828",
-                                                size=22,
-                                            ),
-                                            ft.Text(
-                                                "ALERTA DE AUMENTO DE PREÇOS",
-                                                color="#C62828",
-                                                weight=ft.FontWeight.BOLD,
-                                                size=13,
-                                            ),
-                                        ],
-                                    ),
-                                    ft.Text(
-                                        "O custo destes ingredientes aumentou "
-                                        "em relação ao registro anterior.",
-                                        color=MARROM,
-                                        size=12,
-                                    ),
-                                    *itens_alerta,
-                                ],
-                            ),
+                        padding=12,
+                        bgcolor="#FFFFFF",
+                        border_radius=10,
+                        content=ft.Column(
+                            spacing=5,
+                            controls=[
+                                ft.Text(
+                                    alerta["nome"],
+                                    weight=ft.FontWeight.BOLD,
+                                    color=MARROM,
+                                    size=14,
+                                ),
+                                ft.Text(
+                                    f"Aumento de "
+                                    f"{alerta['aumento_percentual']:.1f}%",
+                                    color="#C62828",
+                                    weight=ft.FontWeight.BOLD,
+                                    size=13,
+                                ),
+                                ft.Text(
+                                    f"Custo por {alerta['unidade_base']}: "
+                                    f"R$ {alerta['custo_anterior']:.5f} "
+                                    f"→ R$ {alerta['custo_atual']:.5f}",
+                                    color=TEXTO_SECUNDARIO,
+                                    size=12,
+                                ),
+                                ft.Text(
+                                    f"Embalagem: R$ "
+                                    f"{alerta['preco_anterior']:.2f} "
+                                    f"→ R$ {alerta['preco_atual']:.2f}",
+                                    color=TEXTO_SECUNDARIO,
+                                    size=12,
+                                ),
+                            ],
                         ),
                     )
                 )
+
+            painel_alertas.append(
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=18),
+                    content=ft.Container(
+                        padding=14,
+                        bgcolor="#FCE8E6",
+                        border_radius=14,
+                        content=ft.Column(
+                            spacing=10,
+                            controls=[
+                                ft.Row(
+                                    spacing=8,
+                                    controls=[
+                                        ft.Icon(
+                                            ft.Icons.WARNING_AMBER_ROUNDED,
+                                            color="#C62828",
+                                            size=22,
+                                        ),
+                                        ft.Text(
+                                            "ALERTA DE AUMENTO DE PREÇOS",
+                                            color="#C62828",
+                                            weight=ft.FontWeight.BOLD,
+                                            size=13,
+                                        ),
+                                    ],
+                                ),
+                                ft.Text(
+                                    "O custo destes ingredientes aumentou "
+                                    "em relação ao registro anterior.",
+                                    color=MARROM,
+                                    size=12,
+                                ),
+                                *itens_alerta,
+                            ],
+                        ),
+                    ),
+                )
+            )
 
 
         # --------------------------------------------------
         # EXCLUSÃO COM DUPLA CONFIRMAÇÃO
         # --------------------------------------------------
 
-    def solicitar_exclusao(ingrediente_id, nome):
+        def solicitar_exclusao(ingrediente_id, nome):
 
             def fechar_primeiro(e):
                 dialogo_primeiro.open = False
@@ -1153,7 +1153,7 @@ def main(page: ft.Page):
         # CARTÕES
         # --------------------------------------------------
 
-    for ingrediente in ingredientes:
+        for ingrediente in ingredientes:
 
             preco = ingrediente["preco_pago_centavos"] / 100
             marca = ingrediente["marca"] or "Sem marca informada"
@@ -1246,7 +1246,7 @@ def main(page: ft.Page):
                 )
             )
 
-    if not cartoes:
+        if not cartoes:
             cartoes.append(
                 ft.Container(
                     padding=25,
@@ -1269,7 +1269,7 @@ def main(page: ft.Page):
                 )
             )
 
-    tela = ft.Column(
+        tela = ft.Column(
             expand=True,
             scroll=ft.ScrollMode.AUTO,
             spacing=16,
@@ -1347,11 +1347,11 @@ def main(page: ft.Page):
             ],
         )
 
-    indice_atual["valor"] = 2
-    navegacao.selected_index = 2
-    page.controls.clear()
-    page.add(tela)
-    page.update()
+        indice_atual["valor"] = 2
+        navegacao.selected_index = 2
+        page.controls.clear()
+        page.add(tela)
+        page.update()
 
     # ==================================================
     # FORMULÁRIO DE INGREDIENTES
