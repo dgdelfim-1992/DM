@@ -21,6 +21,8 @@ from database.banco import (
     salvar_taxas_pagamento,
     obter_margem_minima,
     salvar_margem_minima,
+    obter_markup_ideal,
+    salvar_markup_ideal,
     calcular_simulacao_precificacao,
     criar_tabelas,
     salvar_tempos_receita,
@@ -782,6 +784,7 @@ def main(page: ft.Page):
         taxas_pagamento = obter_taxas_pagamento()
         forma_pagamento = {"valor": "credito_avista"}
         margem_minima = obter_margem_minima()
+        markup_ideal = obter_markup_ideal()
 
         dd_receita = ft.Dropdown(
             label="Produto Final",
@@ -802,18 +805,15 @@ def main(page: ft.Page):
             keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
         )
 
-        tf_markup_ideal = ft.TextField(
-            label="Markup Ideal (%)",
-            value=str(dados_atuais['markup_ideal_pct']) if em_edicao else "100",
-            keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
+        info_markup_ideal = ft.Text(
+            f"Markup ideal configurado: {markup_ideal:.2f}%".replace(".", ","),
+            color=MARROM, size=13, weight=ft.FontWeight.BOLD
+        )
+        info_margem_minima = ft.Text(
+            f"Margem mínima exigida: {margem_minima:.2f}%".replace(".", ","),
+            color=MARROM, size=13, weight=ft.FontWeight.BOLD
         )
 
-        tf_margem_minima = ft.TextField(
-            label="Margem Mínima (%)",
-            value=str(margem_minima).replace('.', ','),
-            keyboard_type=ft.KeyboardType.NUMBER, border_radius=12, expand=True
-        )
-        
         dd_forma_pagamento = ft.Dropdown(
             label="Forma de Pagamento",
             value="credito_avista",
@@ -847,8 +847,8 @@ def main(page: ft.Page):
                 rec_id = int(dd_receita.value) if dd_receita.value else 0
                 qtd_emb = float((tf_qtd_emb.value or "0").replace(",", "."))
                 custo_emb = float((tf_custo_emb.value or "0").replace(",", ".")) * 100
-                mkp_ideal = float((tf_markup_ideal.value or "0").replace(",", "."))
-                margem_min = float((tf_margem_minima.value or "0").replace(",", "."))
+                mkp_ideal = markup_ideal
+                margem_min = margem_minima
                 preco_prat = float((tf_preco_praticado.value or "0").replace(",", ".")) * 100
                 
                 taxa_selecionada = taxas_pagamento[forma_pagamento["valor"]]
@@ -881,8 +881,6 @@ def main(page: ft.Page):
         dd_receita.on_change = atualizar_calculos
         tf_qtd_emb.on_change = atualizar_calculos
         tf_custo_emb.on_change = atualizar_calculos
-        tf_markup_ideal.on_change = atualizar_calculos
-        tf_margem_minima.on_change = atualizar_calculos
         tf_preco_praticado.on_change = atualizar_calculos
 
         def salvar_form(e):
@@ -890,15 +888,14 @@ def main(page: ft.Page):
                 rec_id = int(dd_receita.value)
                 qtd_emb = float((tf_qtd_emb.value or "0").replace(",", "."))
                 custo_emb = int(float((tf_custo_emb.value or "0").replace(",", ".")) * 100)
-                mkp_ideal = float((tf_markup_ideal.value or "0").replace(",", "."))
-                margem_min = float((tf_margem_minima.value or "0").replace(",", "."))
+                mkp_ideal = markup_ideal
+                margem_min = margem_minima
                 preco_prat = int(float((tf_preco_praticado.value or "0").replace(",", ".")) * 100)
 
                 if margem_min < 0 or margem_min >= 100:
                     raise ValueError("A margem mínima deve estar entre 0% e 99,99%.")
 
                 taxa_selecionada = taxas_pagamento[forma_pagamento["valor"]]
-                salvar_margem_minima(margem_min)
                 salvar_precificacao_v2(
                     precificacao_id, rec_id, qtd_emb, custo_emb,
                     mkp_ideal, preco_prat, margem_min, taxa_selecionada
@@ -965,7 +962,13 @@ def main(page: ft.Page):
                         controls=[
                             dd_receita,
                             ft.Row(controls=[tf_qtd_emb, tf_custo_emb]),
-                            ft.Row(controls=[tf_markup_ideal, tf_margem_minima]),
+                            ft.Container(
+                                bgcolor=ROSA_CLARO, padding=12, border_radius=10,
+                                content=ft.Column(
+                                    spacing=5,
+                                    controls=[info_markup_ideal, info_margem_minima]
+                                )
+                            ),
                             dd_forma_pagamento,
                             tf_preco_praticado,
                             painel_resultados,
@@ -2751,6 +2754,8 @@ def main(page: ft.Page):
             faturamento_atual = faturamento_row["valor"] if faturamento_row else "2000.00"
 
             taxas_atuais = obter_taxas_pagamento()
+            markup_ideal_atual = obter_markup_ideal()
+            margem_minima_atual = obter_margem_minima()
 
         finally:
             conexao.close()
@@ -2775,6 +2780,19 @@ def main(page: ft.Page):
             border_radius=12, expand=True
         )
         
+        campo_markup_ideal = ft.TextField(
+            label="Markup Ideal Padrão (%)",
+            value=str(markup_ideal_atual).replace(".", ","),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
+        )
+        campo_margem_minima = ft.TextField(
+            label="Margem Mínima (%)",
+            value=str(margem_minima_atual).replace(".", ","),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
+        )
+
         campo_taxa_pix = ft.TextField(
             label="Taxa Pix (%)",
             value=str(taxas_atuais["pix"]).replace(".", ","),
@@ -2811,6 +2829,8 @@ def main(page: ft.Page):
         def salvar_configuracoes_acao(e):
             try:
                 val_fat = (campo_faturamento.value or "0").replace(",", ".").strip()
+                markup_ideal_valor = (campo_markup_ideal.value or "0").replace(",", ".").strip()
+                margem_minima_valor = (campo_margem_minima.value or "0").replace(",", ".").strip()
                 taxas = {
                     "pix": (campo_taxa_pix.value or "0").replace(",", ".").strip(),
                     "dinheiro": (campo_taxa_dinheiro.value or "0").replace(",", ".").strip(),
@@ -2824,6 +2844,11 @@ def main(page: ft.Page):
                     page.update()
                     return
 
+                if float(markup_ideal_valor) < 0 or float(markup_ideal_valor) >= 10000:
+                    raise ValueError("O markup ideal deve estar entre 0% e 9999,99%.")
+                if float(margem_minima_valor) < 0 or float(margem_minima_valor) >= 100:
+                    raise ValueError("A margem mínima deve estar entre 0% e 99,99%.")
+
                 conexao = obter_conexao()
                 try:
                     conexao.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('faturamento_mensal', ?)", (val_fat,))
@@ -2832,6 +2857,8 @@ def main(page: ft.Page):
                     conexao.close()
 
                 salvar_taxas_pagamento(taxas)
+                salvar_markup_ideal(float(markup_ideal_valor))
+                salvar_margem_minima(float(margem_minima_valor))
                 abrir_custos_fixos()
             except Exception as err:
                 mensagem_custos.value = f"Erro ao atualizar: {err}"
@@ -3115,6 +3142,9 @@ def main(page: ft.Page):
                                 ),
                             ),
                             campo_faturamento,
+                            ft.Text("PARÂMETROS GERAIS DE PRECIFICAÇÃO", weight=ft.FontWeight.BOLD, color=MARROM, size=13),
+                            ft.Row(controls=[campo_markup_ideal, campo_margem_minima]),
+                            ft.Divider(color=ROSA_CLARO),
                             ft.Text("TAXAS POR FORMA DE PAGAMENTO", weight=ft.FontWeight.BOLD, color=MARROM, size=13),
                             ft.Row(controls=[campo_taxa_pix, campo_taxa_dinheiro]),
                             ft.Row(controls=[campo_taxa_debito, campo_taxa_credito]),
