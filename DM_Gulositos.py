@@ -121,6 +121,74 @@ def main(page: ft.Page):
 
 
     # ==================================================
+    # COMPONENTES VISUAIS PADRONIZADOS
+    # ==================================================
+
+    def criar_cabecalho_padrao(titulo, subtitulo, acao_voltar):
+        return ft.Container(
+            padding=ft.Padding.only(left=18, right=18, top=20, bottom=4),
+            content=ft.Row(
+                spacing=12,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Container(
+                        width=40,
+                        height=40,
+                        bgcolor=ROSA_CLARO,
+                        border_radius=12,
+                        alignment=ft.Alignment(0, 0),
+                        on_click=acao_voltar,
+                        content=ft.Icon(
+                            ft.Icons.ARROW_BACK_ROUNDED,
+                            color=MARROM,
+                            size=22,
+                        ),
+                    ),
+                    ft.Column(
+                        expand=True,
+                        spacing=3,
+                        controls=[
+                            ft.Text(
+                                titulo,
+                                size=22,
+                                weight=ft.FontWeight.BOLD,
+                                color=MARROM,
+                            ),
+                            ft.Text(
+                                subtitulo,
+                                size=12,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        )
+
+    def criar_botao_primario(texto, acao, icone=ft.Icons.ADD):
+        return ft.Container(
+            height=52,
+            padding=ft.Padding.symmetric(horizontal=16),
+            bgcolor=ROSA,
+            border_radius=14,
+            on_click=acao,
+            alignment=ft.Alignment(0, 0),
+            content=ft.Row(
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=9,
+                controls=[
+                    ft.Icon(icone, color=BRANCO, size=21),
+                    ft.Text(
+                        texto,
+                        color=BRANCO,
+                        weight=ft.FontWeight.BOLD,
+                        size=14,
+                    ),
+                ],
+            ),
+        )
+
+    # ==================================================
     # BACKUP E RESTAURAÇÃO SEGURA DO BANCO
     # ==================================================
 
@@ -2483,64 +2551,16 @@ def main(page: ft.Page):
             scroll=ft.ScrollMode.AUTO,
             spacing=16,
             controls=[
-                ft.Container(
-                    padding=ft.Padding.only(
-                        left=15,
-                        right=20,
-                        top=20,
-                        bottom=10,
-                    ),
-                    content=ft.Row(
-                        alignment=ft.MainAxisAlignment.START,
-                        controls=[
-                            ft.Container(
-                                padding=8,
-                                border_radius=10,
-                                on_click=voltar_inicio,
-                                content=ft.Icon(
-                                    ft.Icons.ARROW_BACK,
-                                    color=MARROM,
-                                    size=24,
-                                ),
-                            ),
-                            ft.Column(
-                                spacing=3,
-                                controls=[
-                                    ft.Text(
-                                        "Ingredientes",
-                                        size=23,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=MARROM,
-                                    ),
-                                    ft.Text(
-                                        f"{len(ingredientes)} ingrediente(s) cadastrado(s)",
-                                        size=12,
-                                        color=TEXTO_SECUNDARIO,
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
+                criar_cabecalho_padrao(
+                    "Ingredientes",
+                    f"{len(ingredientes)} ingrediente(s) cadastrado(s)",
+                    voltar_inicio,
                 ),
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=18),
-                    content=ft.Container(
-                        width=380,
-                        padding=14,
-                        bgcolor=ROSA,
-                        border_radius=12,
-                        on_click=abrir_cadastro_ingrediente,
-                        content=ft.Row(
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            controls=[
-                                ft.Icon(ft.Icons.ADD, color=BRANCO),
-                                ft.Text(
-                                    "Adicionar ingrediente",
-                                    color=BRANCO,
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                            ],
-                        ),
+                    content=criar_botao_primario(
+                        "Adicionar ingrediente",
+                        abrir_cadastro_ingrediente,
                     ),
                 ),
 
@@ -3312,43 +3332,10 @@ def main(page: ft.Page):
             scroll=ft.ScrollMode.AUTO,
             spacing=16,
             controls=[
-                ft.Container(
-                    padding=ft.Padding.only(
-                        left=15,
-                        right=20,
-                        top=20,
-                        bottom=10,
-                    ),
-                    content=ft.Row(
-                        controls=[
-                            ft.Container(
-                                padding=8,
-                                border_radius=10,
-                                on_click=voltar_inicio,
-                                content=ft.Icon(
-                                    ft.Icons.ARROW_BACK,
-                                    color=MARROM,
-                                    size=24,
-                                ),
-                            ),
-                            ft.Column(
-                                spacing=3,
-                                controls=[
-                                    ft.Text(
-                                        "Receitas / Fichas Técnicas",
-                                        size=22,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=MARROM,
-                                    ),
-                                    ft.Text(
-                                        f"{len(receitas_filtradas)} receita(s) exibida(s)",
-                                        size=12,
-                                        color=TEXTO_SECUNDARIO,
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
+                criar_cabecalho_padrao(
+                    "Receitas / Fichas Técnicas",
+                    f"{len(receitas_filtradas)} receita(s) exibida(s)",
+                    voltar_inicio,
                 ),
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=18),
@@ -3356,23 +3343,9 @@ def main(page: ft.Page):
                 ),
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=18),
-                    content=ft.Container(
-                        width=380,
-                        padding=14,
-                        bgcolor=ROSA,
-                        border_radius=12,
-                        on_click=lambda e: abrir_cadastro_receita(),
-                        content=ft.Row(
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            controls=[
-                                ft.Icon(ft.Icons.ADD, color=BRANCO),
-                                ft.Text(
-                                    "Nova Receita / Ficha Técnica",
-                                    color=BRANCO,
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                            ],
-                        ),
+                    content=criar_botao_primario(
+                        "Nova Receita / Ficha Técnica",
+                        lambda e: abrir_cadastro_receita(),
                     ),
                 ),
                 ft.Container(
