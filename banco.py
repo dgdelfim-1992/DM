@@ -874,8 +874,7 @@ def calcular_precificacao_produto(receita_id):
 
     custo_insumos = custo["custo_insumos"]
     custo_embalagem = precificacao["custo_embalagem_centavos"] / 100
-    fator_fixo = obter_fator_custo_fixo()
-    custo_fixo = custo_insumos * fator_fixo
+    custo_fixo = calcular_custo_fixo_proporcional(receita_id)
     custo_total = custo_insumos + custo_embalagem + custo_fixo
     custo_unitario = custo_total / rendimento
 
@@ -945,6 +944,30 @@ def obter_custo_fixo_por_hora():
     if horas <= 0: return 0.0
     return (total_centavos / 100) / horas
 
+def calcular_custo_fixo_proporcional(receita_id, fator_proporcao=1.0):
+    """
+    Calcula o custo fixo da fração de uma receita usando o tempo produtivo.
+    Mantém a precisão fracionária durante o cálculo; arredondamento fica
+    restrito à apresentação ou à gravação em centavos.
+    """
+    receita_dados = obter_receita(receita_id)
+    if not receita_dados:
+        return 0.0
+
+    receita = receita_dados["receita"]
+    tempo_total_minutos = (
+        float(receita["tempo_preparo_min"] or 0)
+        + float(receita["tempo_batedeira_min"] or 0)
+        + float(receita["tempo_forno_min"] or 0)
+    )
+
+    fator_proporcao = float(fator_proporcao)
+    if fator_proporcao < 0:
+        raise ValueError("A proporção da receita não pode ser negativa.")
+
+    custo_fixo_hora = obter_custo_fixo_por_hora()
+    return (tempo_total_minutos / 60.0) * custo_fixo_hora * fator_proporcao
+
 def calcular_custo_embalagem(ingrediente_id, quantidade):
     if not ingrediente_id or float(quantidade) <= 0: return 0.0
     ingrediente = obter_ingrediente(ingrediente_id)
@@ -981,7 +1004,7 @@ def calcular_precificacao_completa(receita_id, quantidade_venda, embalagem_id=No
     tempo_total_minutos = tempo_preparo + tempo_batedeira + tempo_forno
     tempo_unidade_venda = tempo_total_minutos * fracao_receita
     custo_fixo_hora = obter_custo_fixo_por_hora()
-    custo_fixo = (tempo_unidade_venda / 60) * custo_fixo_hora
+    custo_fixo = calcular_custo_fixo_proporcional(receita_id, fracao_receita)
 
     custo_embalagem = calcular_custo_embalagem(embalagem_id, quantidade_embalagem) if embalagem_id else 0.0
     custo_sacola = calcular_custo_embalagem(sacola_id, quantidade_sacola) if sacola_id else 0.0
@@ -1414,10 +1437,13 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     custo_insumo = custo_base['custo_insumos'] * fator_proporcao
     
     # 2. Custo Fixo Proporcional
-    tempo_total_minutos = (receita['tempo_preparo_min'] or 0) + (receita['tempo_batedeira_min'] or 0) + (receita['tempo_forno_min'] or 0)
+    tempo_total_minutos = (
+        float(receita['tempo_preparo_min'] or 0)
+        + float(receita['tempo_batedeira_min'] or 0)
+        + float(receita['tempo_forno_min'] or 0)
+    )
     custo_fixo_hora = obter_custo_fixo_por_hora()
-    custo_fixo_receita_inteira = (tempo_total_minutos / 60.0) * custo_fixo_hora
-    custo_fixo = custo_fixo_receita_inteira * fator_proporcao
+    custo_fixo = calcular_custo_fixo_proporcional(receita_id, fator_proporcao)
     
     # 3. Custo Embalagem
     custo_embalagem = custo_embalagem_centavos / 100.0
