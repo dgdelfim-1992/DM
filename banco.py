@@ -1003,7 +1003,6 @@ def calcular_precificacao_completa(receita_id, quantidade_venda, embalagem_id=No
 
     tempo_total_minutos = tempo_preparo + tempo_batedeira + tempo_forno
     tempo_unidade_venda = tempo_total_minutos * fracao_receita
-    custo_fixo_hora = obter_custo_fixo_por_hora()
     custo_fixo = calcular_custo_fixo_proporcional(receita_id, fracao_receita)
 
     custo_embalagem = calcular_custo_embalagem(embalagem_id, quantidade_embalagem) if embalagem_id else 0.0
@@ -1437,12 +1436,6 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     custo_insumo = custo_base['custo_insumos'] * fator_proporcao
     
     # 2. Custo Fixo Proporcional
-    tempo_total_minutos = (
-        float(receita['tempo_preparo_min'] or 0)
-        + float(receita['tempo_batedeira_min'] or 0)
-        + float(receita['tempo_forno_min'] or 0)
-    )
-    custo_fixo_hora = obter_custo_fixo_por_hora()
     custo_fixo = calcular_custo_fixo_proporcional(receita_id, fator_proporcao)
     
     # 3. Custo Embalagem
