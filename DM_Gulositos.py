@@ -34,6 +34,7 @@ from database.banco import (
     salvar_horas_produtivas_mensais,
     obter_horas_produtivas_mensais,
     obter_custo_fixo_por_hora,
+    calcular_custo_fixo_proporcional,
     salvar_precificacao_completa,
     calcular_precificacao_completa,
     salvar_precificacao_produto,
@@ -4683,8 +4684,14 @@ def main(page: ft.Page):
 
                     rendimento = receita["rendimento_unidades"] or 0
 
+                    custo_fixo_receita = calcular_custo_fixo_proporcional(
+                        receita["id"]
+                    )
+                    custo_total_receita = (
+                        calculo["custo_insumos"] + custo_fixo_receita
+                    )
                     custo_unitario = (
-                        calculo["custo_insumos"] / rendimento
+                        custo_total_receita / rendimento
                         if rendimento > 0 else 0
                     )
 
