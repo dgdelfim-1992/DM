@@ -2001,7 +2001,7 @@ def main(page: ft.Page):
                             ft.Row(
                                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                                 controls=[
-                                    ft.Text("Margem", size=12, color=TEXTO_SECUNDARIO),
+                                    ft.Text("Margem de contribuição", size=12, color=TEXTO_SECUNDARIO),
                                     lbl_margem_modalidade,
                                 ],
                             ),
@@ -2245,7 +2245,7 @@ def main(page: ft.Page):
                                     ft.Text(nome, weight=ft.FontWeight.BOLD, color=MARROM),
                                     row_resumo("Valor líquido:", linha["liquido"]),
                                     row_resumo("Resultado após rateio:", linha["lucro"]),
-                                    row_resumo("Margem:", linha["margem"]),
+                                    row_resumo("Margem de contribuição:", linha["margem"]),
                                     linha["status"],
                                 ],
                             ),
