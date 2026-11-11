@@ -875,7 +875,8 @@ def calcular_precificacao_produto(receita_id):
     custo_insumos = custo["custo_insumos"]
     custo_embalagem = precificacao["custo_embalagem_centavos"] / 100
     custo_fixo = calcular_custo_fixo_proporcional(receita_id)
-    custo_total = custo_insumos + custo_embalagem + custo_fixo
+    custo_mao_obra = calcular_custo_mao_obra_proporcional(receita_id)
+    custo_total = custo_insumos + custo_embalagem + custo_fixo + custo_mao_obra
     custo_unitario = custo_total / rendimento
 
     margem = precificacao["margem_lucro_pct"] / 100
@@ -887,6 +888,7 @@ def calcular_precificacao_produto(receita_id):
 
     return {
         "custo_insumos": custo_insumos, "custo_embalagem": custo_embalagem, "custo_fixo": custo_fixo,
+        "custo_mao_obra": custo_mao_obra,
         "custo_total": custo_total, "custo_unitario": custo_unitario, "preco_venda_sugerido": preco_venda,
         "lucro_unitario": preco_venda - custo_unitario, "rendimento": rendimento, "unidade_rendimento": custo["unidade_rendimento"]
     }
@@ -937,6 +939,48 @@ def salvar_horas_produtivas_mensais(horas):
         con.commit()
     finally:
         con.close()
+
+def obter_remuneracao_mensal_desejada():
+    """Retorna a remuneração mensal desejada para remunerar o trabalho."""
+    con = obter_conexao()
+    try:
+        resultado = con.execute("SELECT valor FROM configuracoes WHERE chave = 'remuneracao_mensal_desejada'").fetchone()
+        return float(resultado["valor"]) if resultado else 0.0
+    finally:
+        con.close()
+
+
+def salvar_remuneracao_mensal_desejada(valor):
+    valor = float(valor)
+    if valor < 0:
+        raise ValueError("A remuneração mensal desejada não pode ser negativa.")
+    con = obter_conexao()
+    try:
+        con.execute("""INSERT INTO configuracoes(chave, valor)
+            VALUES ('remuneracao_mensal_desejada', ?)
+            ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor""", (str(valor),))
+        con.commit()
+    finally:
+        con.close()
+
+
+def obter_valor_hora_mao_obra():
+    horas = obter_horas_produtivas_mensais()
+    return obter_remuneracao_mensal_desejada() / horas if horas > 0 else 0.0
+
+
+def calcular_custo_mao_obra_proporcional(receita_id, fator_proporcao=1.0):
+    """Mão de obra direta: preparo + batedeira; não inclui tempo passivo de forno."""
+    receita_dados = obter_receita(receita_id)
+    if not receita_dados:
+        return 0.0
+    receita = receita_dados["receita"]
+    minutos_ativos = float(receita["tempo_preparo_min"] or 0) + float(receita["tempo_batedeira_min"] or 0)
+    fator_proporcao = float(fator_proporcao)
+    if fator_proporcao < 0:
+        raise ValueError("A proporção da receita não pode ser negativa.")
+    return (minutos_ativos / 60.0) * obter_valor_hora_mao_obra() * fator_proporcao
+
 
 def obter_custo_fixo_por_hora():
     total_centavos = sum(int(c["valor_centavos"]) for c in listar_custos_fixos())
@@ -1002,19 +1046,25 @@ def calcular_precificacao_completa(receita_id, quantidade_venda, embalagem_id=No
     tempo_forno = float(receita["tempo_forno_min"] or 0)
 
     tempo_total_minutos = tempo_preparo + tempo_batedeira + tempo_forno
+    tempo_ativo_minutos = tempo_preparo + tempo_batedeira
     tempo_unidade_venda = tempo_total_minutos * fracao_receita
     custo_fixo = calcular_custo_fixo_proporcional(receita_id, fracao_receita)
+    custo_mao_obra = calcular_custo_mao_obra_proporcional(receita_id, fracao_receita)
+    custo_fixo_hora = obter_custo_fixo_por_hora()
+    valor_hora_mao_obra = obter_valor_hora_mao_obra()
 
     custo_embalagem = calcular_custo_embalagem(embalagem_id, quantidade_embalagem) if embalagem_id else 0.0
     custo_sacola = calcular_custo_embalagem(sacola_id, quantidade_sacola) if sacola_id else 0.0
 
-    custo_total = custo_insumos + custo_fixo + custo_embalagem + custo_sacola
+    custo_total = custo_insumos + custo_mao_obra + custo_fixo + custo_embalagem + custo_sacola
     preco_sugerido = custo_total * (1 + markup)
 
     return {
         "nome": receita["nome"], "rendimento": rendimento, "unidade_rendimento": receita["unidade_rendimento"],
         "quantidade_venda": quantidade_venda, "custo_insumos": custo_insumos, "tempo_total_minutos": tempo_total_minutos,
+        "tempo_ativo_minutos": tempo_ativo_minutos,
         "tempo_unidade_venda": tempo_unidade_venda, "custo_fixo_hora": custo_fixo_hora, "custo_fixo": custo_fixo,
+        "valor_hora_mao_obra": valor_hora_mao_obra, "custo_mao_obra": custo_mao_obra,
         "custo_embalagem": custo_embalagem, "custo_sacola": custo_sacola, "custo_total": custo_total,
         "markup": markup, "preco_sugerido": preco_sugerido,
     }
@@ -1104,6 +1154,12 @@ def criar_tabela_precificacao_v2():
             CREATE INDEX IF NOT EXISTS idx_historico_precificacao_v2
             ON historico_precificacao_v2(precificacao_id)
         """)
+
+        colunas_historico = {
+            coluna["name"] for coluna in conexao.execute("PRAGMA table_info(historico_precificacao_v2)").fetchall()
+        }
+        if "custo_mao_obra_centavos" not in colunas_historico:
+            conexao.execute("ALTER TABLE historico_precificacao_v2 ADD COLUMN custo_mao_obra_centavos INTEGER NOT NULL DEFAULT 0")
 
         conexao.commit()
 
@@ -1244,6 +1300,7 @@ def salvar_precificacao_v2(
                 markup_ideal_pct,
                 custo_insumo_centavos,
                 custo_fixo_centavos,
+                custo_mao_obra_centavos,
                 custo_total_centavos,
                 preco_sugerido_centavos,
                 preco_praticado_centavos,
@@ -1252,7 +1309,7 @@ def salvar_precificacao_v2(
                 status,
                 registrado_em
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             precificacao_id,
             receita_id,
@@ -1263,6 +1320,7 @@ def salvar_precificacao_v2(
             markup_ideal_pct,
             round(resultado["custo_insumo"] * 100),
             round(resultado["custo_fixo"] * 100),
+            round(resultado["custo_mao_obra"] * 100),
             round(resultado["custo_total"] * 100),
             round(resultado["preco_sugerido"] * 100),
             preco_praticado_centavos,
@@ -1435,14 +1493,12 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     fator_proporcao = quantidade_embalagem / rendimento_receita
     custo_insumo = custo_base['custo_insumos'] * fator_proporcao
     
-    # 2. Custo Fixo Proporcional
+    # Mão de obra direta: preparo + batedeira; exclui o tempo passivo de forno.
+    custo_mao_obra = calcular_custo_mao_obra_proporcional(receita_id, fator_proporcao)
+    # Despesas fixas: tempo de ocupação, incluindo o forno.
     custo_fixo = calcular_custo_fixo_proporcional(receita_id, fator_proporcao)
-    
-    # 3. Custo Embalagem
     custo_embalagem = custo_embalagem_centavos / 100.0
-    
-    # 4. Custo Total
-    custo_total = custo_insumo + custo_fixo + custo_embalagem
+    custo_total = custo_insumo + custo_mao_obra + custo_fixo + custo_embalagem
     
     # 5. Preço Sugerido Base
     # O preço sugerido não depende de uma modalidade específica.
@@ -1455,9 +1511,11 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     # Markup Aplicado = (Preço Praticado - Custo Total) / Custo Total
     markup_aplicado_pct = ((preco_praticado - custo_total) / custo_total * 100.0) if custo_total > 0 else 0
     
-    # Margem de Contribuição = Preço Praticado - Custo Total - (Preço Praticado * Taxa Cartão)
+    # Margem de contribuição deduz custos variáveis, mas não o rateio fixo.
     imposto_cartao = preco_praticado * (taxa_cartao_pct / 100.0)
-    margem_contribuicao = preco_praticado - custo_total - imposto_cartao
+    custos_variaveis = custo_insumo + custo_mao_obra + custo_embalagem
+    margem_contribuicao = preco_praticado - custos_variaveis - imposto_cartao
+    resultado_apos_rateio = preco_praticado - custo_total - imposto_cartao
     
     if margem_minima_pct is None:
         margem_minima_pct = obter_margem_minima()
@@ -1466,6 +1524,7 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     
     return {
         "custo_insumo": custo_insumo,
+        "custo_mao_obra": custo_mao_obra,
         "custo_fixo": custo_fixo,
         "custo_embalagem": custo_embalagem,
         "custo_total": custo_total,
@@ -1473,6 +1532,7 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
         "preco_praticado": preco_praticado,
         "markup_aplicado_pct": markup_aplicado_pct,
         "margem_contribuicao": margem_contribuicao,
+        "resultado_apos_rateio": resultado_apos_rateio,
         "margem_real_pct": margem_real_pct,
         "margem_minima_pct": margem_minima_pct,
         "status": status
