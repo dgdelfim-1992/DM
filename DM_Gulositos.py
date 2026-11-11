@@ -1055,8 +1055,9 @@ def main(page: ft.Page):
             dialogo.open = True
             page.update()
 
-        # Obter taxa do cartão uma única vez para usar nos cálculos da lista
-        taxa_cartao = obter_taxa_cartao()
+        # Usa a maior taxa configurada para precificações ainda sem preço praticado.
+        taxas_lista = obter_taxas_pagamento()
+        taxa_cartao = max([float(v) for v in taxas_lista.values()] or [0.0])
 
         for prec in precificacoes:
             preco_praticado = prec['preco_praticado_centavos'] / 100
@@ -1219,7 +1220,7 @@ def main(page: ft.Page):
                 prec["custo_embalagem_centavos"],
                 prec["markup_ideal_pct"],
                 prec["preco_praticado_centavos"],
-                taxas.get("credito_avista", 0),
+                max([float(v) for v in taxas.values()] or [0.0]),
                 margem_minima,
                 embalagem_id=prec["embalagem_id"],
                 quantidade_embalagem_insumo=prec["quantidade_embalagem_insumo"],
@@ -1940,6 +1941,7 @@ def main(page: ft.Page):
 
         lbl_insumo = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
         lbl_mao_obra = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_embalagens = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
         lbl_custo_fixo = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
         lbl_custo_total = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, size=16, color=ROSA)
         lbl_preco_sugerido = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, size=16, color=MARROM)
@@ -2089,6 +2091,7 @@ def main(page: ft.Page):
 
                 lbl_insumo.value = formatar_reais(resultado["custo_insumo"])
                 lbl_mao_obra.value = formatar_reais(resultado["custo_mao_obra"])
+                lbl_embalagens.value = formatar_reais(resultado["custo_embalagem"])
                 lbl_custo_fixo.value = formatar_reais(resultado["custo_fixo"])
                 lbl_custo_total.value = formatar_reais(custo_total)
                 lbl_preco_sugerido.value = formatar_reais(preco_sugerido)
@@ -2261,6 +2264,7 @@ def main(page: ft.Page):
                     ),
                     row_resumo("Custo dos insumos:", lbl_insumo),
                     row_resumo("Mão de obra direta:", lbl_mao_obra),
+                    row_resumo("Embalagens e sacolas:", lbl_embalagens),
                     row_resumo("Despesas fixas rateadas:", lbl_custo_fixo),
                     ft.Divider(color=ROSA),
                     row_resumo("CUSTO TOTAL:", lbl_custo_total),
