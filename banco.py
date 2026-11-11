@@ -1119,9 +1119,28 @@ def criar_tabela_precificacao_v2():
                 custo_embalagem_centavos INTEGER NOT NULL,
                 markup_ideal_pct REAL NOT NULL,
                 preco_praticado_centavos INTEGER NOT NULL,
-                FOREIGN KEY (receita_id) REFERENCES receitas(id)
+                embalagem_id INTEGER,
+                quantidade_embalagem_insumo REAL NOT NULL DEFAULT 0,
+                sacola_id INTEGER,
+                quantidade_sacola REAL NOT NULL DEFAULT 0,
+                FOREIGN KEY (receita_id) REFERENCES receitas(id),
+                FOREIGN KEY (embalagem_id) REFERENCES ingredientes(id),
+                FOREIGN KEY (sacola_id) REFERENCES ingredientes(id)
             )
         """)
+
+        colunas_precificacao = {
+            coluna["name"] for coluna in conexao.execute("PRAGMA table_info(precificacao_v2)").fetchall()
+        }
+        novas_colunas_precificacao = {
+            "embalagem_id": "INTEGER",
+            "quantidade_embalagem_insumo": "REAL NOT NULL DEFAULT 0",
+            "sacola_id": "INTEGER",
+            "quantidade_sacola": "REAL NOT NULL DEFAULT 0",
+        }
+        for nome_coluna, tipo_coluna in novas_colunas_precificacao.items():
+            if nome_coluna not in colunas_precificacao:
+                conexao.execute(f"ALTER TABLE precificacao_v2 ADD COLUMN {nome_coluna} {tipo_coluna}")
 
         # Histórico exclusivo da precificação atual
         conexao.execute("""
@@ -1197,7 +1216,11 @@ def salvar_precificacao_v2(
     markup_ideal_pct,
     preco_praticado_centavos,
     margem_minima_pct=None,
-    taxa_cartao_pct=None
+    taxa_cartao_pct=None,
+    embalagem_id=None,
+    quantidade_embalagem_insumo=0,
+    sacola_id=None,
+    quantidade_sacola=0
 ):
     conexao = obter_conexao()
 
@@ -1222,15 +1245,16 @@ def salvar_precificacao_v2(
                     quantidade_embalagem = ?,
                     custo_embalagem_centavos = ?,
                     markup_ideal_pct = ?,
-                    preco_praticado_centavos = ?
+                    preco_praticado_centavos = ?,
+                    embalagem_id = ?,
+                    quantidade_embalagem_insumo = ?,
+                    sacola_id = ?,
+                    quantidade_sacola = ?
                 WHERE id = ?
             """, (
-                receita_id,
-                quantidade_embalagem,
-                custo_embalagem_centavos,
-                markup_ideal_pct,
-                preco_praticado_centavos,
-                id
+                receita_id, quantidade_embalagem, custo_embalagem_centavos,
+                markup_ideal_pct, preco_praticado_centavos,
+                embalagem_id, quantidade_embalagem_insumo, sacola_id, quantidade_sacola, id
             ))
 
             precificacao_id = id
@@ -1242,15 +1266,17 @@ def salvar_precificacao_v2(
                     quantidade_embalagem,
                     custo_embalagem_centavos,
                     markup_ideal_pct,
-                    preco_praticado_centavos
+                    preco_praticado_centavos,
+                    embalagem_id,
+                    quantidade_embalagem_insumo,
+                    sacola_id,
+                    quantidade_sacola
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                receita_id,
-                quantidade_embalagem,
-                custo_embalagem_centavos,
-                markup_ideal_pct,
-                preco_praticado_centavos
+                receita_id, quantidade_embalagem, custo_embalagem_centavos,
+                markup_ideal_pct, preco_praticado_centavos,
+                embalagem_id, quantidade_embalagem_insumo, sacola_id, quantidade_sacola
             ))
 
             precificacao_id = cursor.lastrowid
@@ -1271,7 +1297,11 @@ def salvar_precificacao_v2(
             markup_ideal_pct,
             preco_praticado_centavos,
             taxa_cartao,
-            margem_minima_pct
+            margem_minima_pct,
+            embalagem_id,
+            quantidade_embalagem_insumo,
+            sacola_id,
+            quantidade_sacola
         )
 
         if not resultado:
@@ -1506,7 +1536,7 @@ def salvar_margem_minima(valor):
         conexao.close()
 
 
-def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_embalagem_centavos, markup_ideal_pct, preco_praticado_centavos, taxa_cartao_pct, margem_minima_pct=None):
+def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_embalagem_centavos, markup_ideal_pct, preco_praticado_centavos, taxa_cartao_pct, margem_minima_pct=None, embalagem_id=None, quantidade_embalagem_insumo=0, sacola_id=None, quantidade_sacola=0):
     # 1. Custo Base Insumos
     custo_base = calcular_custo_receita(receita_id)
     if not custo_base:
@@ -1528,7 +1558,10 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     custo_mao_obra = calcular_custo_mao_obra_proporcional(receita_id, fator_proporcao)
     # Despesas fixas: tempo de ocupação, incluindo o forno.
     custo_fixo = calcular_custo_fixo_proporcional(receita_id, fator_proporcao)
-    custo_embalagem = custo_embalagem_centavos / 100.0
+    custo_embalagem_manual = custo_embalagem_centavos / 100.0
+    custo_embalagem_insumo = calcular_custo_embalagem(embalagem_id, quantidade_embalagem_insumo) if embalagem_id else 0.0
+    custo_sacola = calcular_custo_embalagem(sacola_id, quantidade_sacola) if sacola_id else 0.0
+    custo_embalagem = custo_embalagem_manual + custo_embalagem_insumo + custo_sacola
     custo_total = custo_insumo + custo_mao_obra + custo_fixo + custo_embalagem
     
     # Preço sugerido cobre o markup e os percentuais incidentes sobre a venda.
@@ -1562,6 +1595,9 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
         "custo_mao_obra": custo_mao_obra,
         "custo_fixo": custo_fixo,
         "custo_embalagem": custo_embalagem,
+        "custo_embalagem_manual": custo_embalagem_manual,
+        "custo_embalagem_insumo": custo_embalagem_insumo,
+        "custo_sacola": custo_sacola,
         "impostos_pct": impostos_pct,
         "valor_impostos": imposto_venda,
         "custo_total": custo_total,
