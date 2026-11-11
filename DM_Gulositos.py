@@ -28,6 +28,10 @@ from database.banco import (
     salvar_margem_minima,
     obter_markup_ideal,
     salvar_markup_ideal,
+    obter_remuneracao_mensal_desejada,
+    salvar_remuneracao_mensal_desejada,
+    obter_impostos_pct,
+    salvar_impostos_pct,
     calcular_simulacao_precificacao,
     criar_tabelas,
     salvar_tempos_receita,
@@ -1896,6 +1900,7 @@ def main(page: ft.Page):
         )
 
         lbl_insumo = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
+        lbl_mao_obra = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
         lbl_custo_fixo = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, color=MARROM)
         lbl_custo_total = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, size=16, color=ROSA)
         lbl_preco_sugerido = ft.Text("R$ 0,00", weight=ft.FontWeight.BOLD, size=16, color=MARROM)
@@ -1989,7 +1994,7 @@ def main(page: ft.Page):
                             ft.Row(
                                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                                 controls=[
-                                    ft.Text("Lucro estimado", size=12, color=TEXTO_SECUNDARIO),
+                                    ft.Text("Resultado após rateio", size=12, color=TEXTO_SECUNDARIO),
                                     lbl_lucro,
                                 ],
                             ),
@@ -2015,15 +2020,12 @@ def main(page: ft.Page):
                     (tf_preco_praticado.value or "0").replace(",", ".")
                 )
 
-                # O cálculo-base não inclui taxa: as taxas são comparadas separadamente abaixo.
+                # Usa a maior taxa cadastrada para que o preço sugerido cubra
+                # todas as formas de pagamento configuradas.
+                taxa_referencia = max([float(v) for v in taxas_pagamento.values()] or [0.0])
                 resultado = calcular_simulacao_precificacao(
-                    rec_id,
-                    qtd_emb,
-                    custo_emb,
-                    markup_ideal,
-                    0,
-                    0,
-                    margem_minima,
+                    rec_id, qtd_emb, custo_emb, markup_ideal, 0,
+                    taxa_referencia, margem_minima,
                 )
 
                 if not resultado:
@@ -2035,6 +2037,7 @@ def main(page: ft.Page):
                 preco_referencia = preco_praticado if usar_preco_praticado else preco_sugerido
 
                 lbl_insumo.value = formatar_reais(resultado["custo_insumo"])
+                lbl_mao_obra.value = formatar_reais(resultado["custo_mao_obra"])
                 lbl_custo_fixo.value = formatar_reais(resultado["custo_fixo"])
                 lbl_custo_total.value = formatar_reais(custo_total)
                 lbl_preco_sugerido.value = formatar_reais(preco_sugerido)
@@ -2054,9 +2057,12 @@ def main(page: ft.Page):
                 for linha in linhas_comparativo:
                     taxa = float(taxas_pagamento.get(linha["chave"], 0))
                     valor_taxa = preco_referencia * taxa / 100
-                    valor_liquido = preco_referencia - valor_taxa
+                    valor_impostos = preco_referencia * resultado["impostos_pct"] / 100
+                    valor_liquido = preco_referencia - valor_taxa - valor_impostos
                     lucro = valor_liquido - custo_total
-                    margem = (lucro / preco_referencia * 100) if preco_referencia > 0 else 0
+                    custos_variaveis = resultado["custo_insumo"] + resultado["custo_mao_obra"] + resultado["custo_embalagem"]
+                    contribuicao = valor_liquido - custos_variaveis
+                    margem = (contribuicao / preco_referencia * 100) if preco_referencia > 0 else 0
 
                     dentro_margem = margem >= margem_minima
                     linha["taxa"].value = f"Taxa: {taxa:.2f}%".replace(".", ",")
@@ -2094,9 +2100,12 @@ def main(page: ft.Page):
                 for linha in linhas_desconto:
                     taxa = float(taxas_pagamento.get(linha["chave"], 0))
                     valor_taxa = preco_com_desconto * taxa / 100
-                    valor_liquido = preco_com_desconto - valor_taxa
+                    valor_impostos = preco_com_desconto * resultado["impostos_pct"] / 100
+                    valor_liquido = preco_com_desconto - valor_taxa - valor_impostos
                     lucro = valor_liquido - custo_total
-                    margem = (lucro / preco_com_desconto * 100) if preco_com_desconto > 0 else -100
+                    custos_variaveis = resultado["custo_insumo"] + resultado["custo_mao_obra"] + resultado["custo_embalagem"]
+                    contribuicao = valor_liquido - custos_variaveis
+                    margem = (contribuicao / preco_com_desconto * 100) if preco_com_desconto > 0 else -100
                     dentro_margem = margem >= margem_minima
 
                     linha["liquido"].value = formatar_reais(valor_liquido)
@@ -2188,7 +2197,8 @@ def main(page: ft.Page):
                         color=MARROM,
                     ),
                     row_resumo("Custo dos insumos:", lbl_insumo),
-                    row_resumo("Custo fixo (tempo):", lbl_custo_fixo),
+                    row_resumo("Mão de obra direta:", lbl_mao_obra),
+                    row_resumo("Despesas fixas rateadas:", lbl_custo_fixo),
                     ft.Divider(color=ROSA),
                     row_resumo("CUSTO TOTAL:", lbl_custo_total),
                     row_resumo("Preço sugerido:", lbl_preco_sugerido),
@@ -2234,7 +2244,7 @@ def main(page: ft.Page):
                                 controls=[
                                     ft.Text(nome, weight=ft.FontWeight.BOLD, color=MARROM),
                                     row_resumo("Valor líquido:", linha["liquido"]),
-                                    row_resumo("Lucro estimado:", linha["lucro"]),
+                                    row_resumo("Resultado após rateio:", linha["lucro"]),
                                     row_resumo("Margem:", linha["margem"]),
                                     linha["status"],
                                 ],
@@ -4159,6 +4169,9 @@ def main(page: ft.Page):
 
             faturamento_row = conexao.execute("SELECT valor FROM configuracoes WHERE chave = 'faturamento_mensal'").fetchone()
             faturamento_atual = faturamento_row["valor"] if faturamento_row else "2000.00"
+            remuneracao_atual = obter_remuneracao_mensal_desejada()
+            horas_produtivas_atual = obter_horas_produtivas_mensais()
+            impostos_atual = obter_impostos_pct()
 
             taxas_atuais = obter_taxas_pagamento()
             markup_ideal_atual = obter_markup_ideal()
@@ -4183,6 +4196,24 @@ def main(page: ft.Page):
         campo_faturamento = criar_campo_padrao(
             label="Faturamento Médio Mensal Alvo (R$)",
             value=str(faturamento_atual),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
+        )
+        campo_remuneracao = criar_campo_padrao(
+            label="Remuneração mensal desejada (R$)",
+            value=f"{remuneracao_atual:.2f}".replace(".", ","),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
+        )
+        campo_horas_produtivas = criar_campo_padrao(
+            label="Horas produtivas mensais",
+            value=str(horas_produtivas_atual).replace(".", ","),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12, expand=True
+        )
+        campo_impostos = criar_campo_padrao(
+            label="Impostos sobre venda (%)",
+            value=f"{impostos_atual:.2f}".replace(".", ","),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12, expand=True
         )
@@ -4236,6 +4267,9 @@ def main(page: ft.Page):
         def salvar_configuracoes_acao(e):
             try:
                 val_fat = (campo_faturamento.value or "0").replace(",", ".").strip()
+                val_remuneracao = (campo_remuneracao.value or "0").replace(",", ".").strip()
+                val_horas = (campo_horas_produtivas.value or "0").replace(",", ".").strip()
+                val_impostos = (campo_impostos.value or "0").replace(",", ".").strip()
                 markup_ideal_valor = (campo_markup_ideal.value or "0").replace(",", ".").strip()
                 margem_minima_valor = (campo_margem_minima.value or "0").replace(",", ".").strip()
                 taxas = {
@@ -4250,6 +4284,12 @@ def main(page: ft.Page):
                     mensagem_custos.value = "Informe um faturamento maior que zero."
                     page.update()
                     return
+                if float(val_remuneracao) < 0:
+                    raise ValueError("A remuneração mensal não pode ser negativa.")
+                if float(val_horas) <= 0:
+                    raise ValueError("As horas produtivas devem ser maiores que zero.")
+                if float(val_impostos) < 0 or float(val_impostos) >= 100:
+                    raise ValueError("Os impostos devem estar entre 0% e 99,99%.")
 
                 if float(markup_ideal_valor) < 0 or float(markup_ideal_valor) >= 10000:
                     raise ValueError("O markup ideal deve estar entre 0% e 9999,99%.")
@@ -4263,6 +4303,9 @@ def main(page: ft.Page):
                 finally:
                     conexao.close()
 
+                salvar_remuneracao_mensal_desejada(float(val_remuneracao))
+                salvar_horas_produtivas_mensais(float(val_horas))
+                salvar_impostos_pct(float(val_impostos))
                 salvar_taxas_pagamento(taxas)
                 salvar_markup_ideal(float(markup_ideal_valor))
                 salvar_margem_minima(float(margem_minima_valor))
@@ -4549,8 +4592,11 @@ def main(page: ft.Page):
                                 ),
                             ),
                             campo_faturamento,
+                            ft.Text("REMUNERAÇÃO E TEMPO PRODUTIVO", weight=ft.FontWeight.BOLD, color=MARROM, size=13),
+                            ft.Row(controls=[campo_remuneracao, campo_horas_produtivas]),
                             ft.Text("PARÂMETROS GERAIS DE PRECIFICAÇÃO", weight=ft.FontWeight.BOLD, color=MARROM, size=13),
                             ft.Row(controls=[campo_markup_ideal, campo_margem_minima]),
+                            campo_impostos,
                             ft.Divider(color=ROSA_CLARO),
                             ft.Text("TAXAS POR FORMA DE PAGAMENTO", weight=ft.FontWeight.BOLD, color=MARROM, size=13),
                             ft.Row(controls=[campo_taxa_pix, campo_taxa_dinheiro]),
