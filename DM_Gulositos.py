@@ -1064,12 +1064,13 @@ def main(page: ft.Page):
             # Recalcular os dados para descobrir o status da margem
             # Passando os argumentos na ordem correta (posicional) sem os nomes
             res = calcular_simulacao_precificacao(
-                prec['receita_id'],
-                prec['quantidade_embalagem'],
-                prec['custo_embalagem_centavos'],
-                prec['markup_ideal_pct'],
-                prec['preco_praticado_centavos'],
-                taxa_cartao
+                prec['receita_id'], prec['quantidade_embalagem'],
+                prec['custo_embalagem_centavos'], prec['markup_ideal_pct'],
+                prec['preco_praticado_centavos'], taxa_cartao,
+                embalagem_id=prec["embalagem_id"],
+                quantidade_embalagem_insumo=prec["quantidade_embalagem_insumo"],
+                sacola_id=prec["sacola_id"],
+                quantidade_sacola=prec["quantidade_sacola"],
             )
 
             # Definir cores baseadas no status
@@ -1220,6 +1221,10 @@ def main(page: ft.Page):
                 prec["preco_praticado_centavos"],
                 taxas.get("credito_avista", 0),
                 margem_minima,
+                embalagem_id=prec["embalagem_id"],
+                quantidade_embalagem_insumo=prec["quantidade_embalagem_insumo"],
+                sacola_id=prec["sacola_id"],
+                quantidade_sacola=prec["quantidade_sacola"],
             )
             if resultado:
                 preco_base = (
@@ -1832,6 +1837,11 @@ def main(page: ft.Page):
         taxas_pagamento = obter_taxas_pagamento()
         margem_minima = obter_margem_minima()
         markup_ideal = obter_markup_ideal()
+        insumos_embalagem = listar_ingredientes()
+        opcoes_insumos = [ft.dropdown.Option("", "Não utilizar")] + [
+            ft.dropdown.Option(str(item["id"]), item["nome"])
+            for item in insumos_embalagem
+        ]
 
         modalidades = [
             ("Dinheiro", "dinheiro"),
@@ -1865,11 +1875,40 @@ def main(page: ft.Page):
         )
 
         tf_custo_emb = criar_campo_padrao(
-            label="Embalagem + Sacola (R$)",
+            label="Outros custos de embalagem (R$)",
             value=(
                 f"{dados_atuais['custo_embalagem_centavos'] / 100:.2f}".replace(".", ",")
                 if em_edicao else "0,00"
             ),
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12,
+            expand=True,
+        )
+
+        dd_embalagem = criar_dropdown_padrao(
+            label="Embalagem cadastrada como insumo",
+            options=opcoes_insumos,
+            value=str(dados_atuais["embalagem_id"] or "") if em_edicao else "",
+            border_radius=12,
+            expand=True,
+        )
+        tf_qtd_embalagem_insumo = criar_campo_padrao(
+            label="Quantidade de embalagens",
+            value=str(dados_atuais["quantidade_embalagem_insumo"] or 0) if em_edicao else "0",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_radius=12,
+            expand=True,
+        )
+        dd_sacola = criar_dropdown_padrao(
+            label="Sacola cadastrada como insumo",
+            options=opcoes_insumos,
+            value=str(dados_atuais["sacola_id"] or "") if em_edicao else "",
+            border_radius=12,
+            expand=True,
+        )
+        tf_qtd_sacola = criar_campo_padrao(
+            label="Quantidade de sacolas",
+            value=str(dados_atuais["quantidade_sacola"] or 0) if em_edicao else "0",
             keyboard_type=ft.KeyboardType.NUMBER,
             border_radius=12,
             expand=True,
@@ -2016,6 +2055,14 @@ def main(page: ft.Page):
                 rec_id = int(dd_receita.value) if dd_receita.value else 0
                 qtd_emb = float((tf_qtd_emb.value or "0").replace(",", "."))
                 custo_emb = float((tf_custo_emb.value or "0").replace(",", ".")) * 100
+                embalagem_id = int(dd_embalagem.value) if dd_embalagem.value else None
+                qtd_embalagem_insumo = float((tf_qtd_embalagem_insumo.value or "0").replace(",", "."))
+                sacola_id = int(dd_sacola.value) if dd_sacola.value else None
+                qtd_sacola = float((tf_qtd_sacola.value or "0").replace(",", "."))
+                if embalagem_id and qtd_embalagem_insumo <= 0:
+                    raise ValueError("Informe a quantidade de embalagens utilizada.")
+                if sacola_id and qtd_sacola <= 0:
+                    raise ValueError("Informe a quantidade de sacolas utilizada.")
                 preco_praticado = float(
                     (tf_preco_praticado.value or "0").replace(",", ".")
                 )
@@ -2026,6 +2073,10 @@ def main(page: ft.Page):
                 resultado = calcular_simulacao_precificacao(
                     rec_id, qtd_emb, custo_emb, markup_ideal, 0,
                     taxa_referencia, margem_minima,
+                    embalagem_id=embalagem_id,
+                    quantidade_embalagem_insumo=qtd_embalagem_insumo,
+                    sacola_id=sacola_id,
+                    quantidade_sacola=qtd_sacola,
                 )
 
                 if not resultado:
@@ -2140,6 +2191,10 @@ def main(page: ft.Page):
         dd_receita.on_change = atualizar_calculos
         tf_qtd_emb.on_change = atualizar_calculos
         tf_custo_emb.on_change = atualizar_calculos
+        dd_embalagem.on_change = atualizar_calculos
+        tf_qtd_embalagem_insumo.on_change = atualizar_calculos
+        dd_sacola.on_change = atualizar_calculos
+        tf_qtd_sacola.on_change = atualizar_calculos
         tf_preco_praticado.on_change = atualizar_calculos
         dd_tipo_desconto.on_change = atualizar_calculos
         tf_desconto.on_change = atualizar_calculos
@@ -2151,6 +2206,10 @@ def main(page: ft.Page):
                 custo_emb = int(
                     float((tf_custo_emb.value or "0").replace(",", ".")) * 100
                 )
+                embalagem_id = int(dd_embalagem.value) if dd_embalagem.value else None
+                qtd_embalagem_insumo = float((tf_qtd_embalagem_insumo.value or "0").replace(",", "."))
+                sacola_id = int(dd_sacola.value) if dd_sacola.value else None
+                qtd_sacola = float((tf_qtd_sacola.value or "0").replace(",", "."))
                 preco_prat = int(
                     float((tf_preco_praticado.value or "0").replace(",", ".")) * 100
                 )
@@ -2169,6 +2228,10 @@ def main(page: ft.Page):
                     preco_prat,
                     margem_minima,
                     taxas_pagamento["credito_avista"],
+                    embalagem_id,
+                    qtd_embalagem_insumo,
+                    sacola_id,
+                    qtd_sacola,
                 )
                 abrir_precificacao()
             except Exception as err:
@@ -2317,6 +2380,8 @@ def main(page: ft.Page):
                         controls=[
                             dd_receita,
                             ft.Row(controls=[tf_qtd_emb, tf_custo_emb]),
+                            ft.Row(controls=[dd_embalagem, tf_qtd_embalagem_insumo]),
+                            ft.Row(controls=[dd_sacola, tf_qtd_sacola]),
                             ft.Container(
                                 bgcolor=ROSA_CLARO,
                                 padding=12,
