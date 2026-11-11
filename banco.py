@@ -1160,6 +1160,8 @@ def criar_tabela_precificacao_v2():
         }
         if "custo_mao_obra_centavos" not in colunas_historico:
             conexao.execute("ALTER TABLE historico_precificacao_v2 ADD COLUMN custo_mao_obra_centavos INTEGER NOT NULL DEFAULT 0")
+        if "impostos_pct" not in colunas_historico:
+            conexao.execute("ALTER TABLE historico_precificacao_v2 ADD COLUMN impostos_pct REAL NOT NULL DEFAULT 0")
 
         conexao.commit()
 
@@ -1301,6 +1303,7 @@ def salvar_precificacao_v2(
                 custo_insumo_centavos,
                 custo_fixo_centavos,
                 custo_mao_obra_centavos,
+                impostos_pct,
                 custo_total_centavos,
                 preco_sugerido_centavos,
                 preco_praticado_centavos,
@@ -1309,7 +1312,7 @@ def salvar_precificacao_v2(
                 status,
                 registrado_em
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             precificacao_id,
             receita_id,
@@ -1321,6 +1324,7 @@ def salvar_precificacao_v2(
             round(resultado["custo_insumo"] * 100),
             round(resultado["custo_fixo"] * 100),
             round(resultado["custo_mao_obra"] * 100),
+            resultado["impostos_pct"],
             round(resultado["custo_total"] * 100),
             round(resultado["preco_sugerido"] * 100),
             preco_praticado_centavos,
@@ -1416,6 +1420,33 @@ def obter_taxa_cartao():
     return obter_taxas_pagamento()["credito_avista"]
 
 
+def obter_impostos_pct():
+    conexao = obter_conexao()
+    try:
+        row = conexao.execute(
+            "SELECT valor FROM configuracoes WHERE chave = 'impostos_pct'"
+        ).fetchone()
+        return float(row["valor"]) if row else 0.0
+    finally:
+        conexao.close()
+
+
+def salvar_impostos_pct(valor):
+    valor = float(valor)
+    if valor < 0 or valor >= 100:
+        raise ValueError("Os impostos devem estar entre 0% e 99,99%.")
+    conexao = obter_conexao()
+    try:
+        conexao.execute(
+            """INSERT INTO configuracoes(chave, valor) VALUES ('impostos_pct', ?)
+               ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor""",
+            (str(valor),)
+        )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+
 def obter_markup_ideal():
     """Retorna o markup ideal global; usa 100% como padrão inicial."""
     conexao = obter_conexao()
@@ -1500,10 +1531,13 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     custo_embalagem = custo_embalagem_centavos / 100.0
     custo_total = custo_insumo + custo_mao_obra + custo_fixo + custo_embalagem
     
-    # 5. Preço Sugerido Base
-    # O preço sugerido não depende de uma modalidade específica.
-    # As taxas são aplicadas separadamente na comparação por forma de pagamento.
-    preco_sugerido = custo_total * (1 + (markup_ideal_pct / 100.0))
+    # Preço sugerido cobre o markup e os percentuais incidentes sobre a venda.
+    impostos_pct = obter_impostos_pct()
+    percentual_total_venda = float(taxa_cartao_pct) + impostos_pct
+    if percentual_total_venda < 0 or percentual_total_venda >= 100:
+        raise ValueError("A soma de impostos e taxas deve ser inferior a 100%.")
+    divisor_preco = 1 - (percentual_total_venda / 100.0)
+    preco_sugerido = custo_total * (1 + (markup_ideal_pct / 100.0)) / divisor_preco
     
     # 6. Analise do Preço Praticado
     preco_praticado = preco_praticado_centavos / 100.0
@@ -1513,9 +1547,10 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     
     # Margem de contribuição deduz custos variáveis, mas não o rateio fixo.
     imposto_cartao = preco_praticado * (taxa_cartao_pct / 100.0)
+    imposto_venda = preco_praticado * (impostos_pct / 100.0)
     custos_variaveis = custo_insumo + custo_mao_obra + custo_embalagem
-    margem_contribuicao = preco_praticado - custos_variaveis - imposto_cartao
-    resultado_apos_rateio = preco_praticado - custo_total - imposto_cartao
+    margem_contribuicao = preco_praticado - custos_variaveis - imposto_cartao - imposto_venda
+    resultado_apos_rateio = preco_praticado - custo_total - imposto_cartao - imposto_venda
     
     if margem_minima_pct is None:
         margem_minima_pct = obter_margem_minima()
@@ -1527,6 +1562,8 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
         "custo_mao_obra": custo_mao_obra,
         "custo_fixo": custo_fixo,
         "custo_embalagem": custo_embalagem,
+        "impostos_pct": impostos_pct,
+        "valor_impostos": imposto_venda,
         "custo_total": custo_total,
         "preco_sugerido": preco_sugerido,
         "preco_praticado": preco_praticado,
