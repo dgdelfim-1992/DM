@@ -2386,6 +2386,12 @@ def main(page: ft.Page):
                             ft.Row(controls=[tf_qtd_emb, tf_custo_emb]),
                             ft.Row(controls=[dd_embalagem, tf_qtd_embalagem_insumo]),
                             ft.Row(controls=[dd_sacola, tf_qtd_sacola]),
+                            ft.Text(
+                                "Os custos selecionados acima são buscados nos Insumos. "
+                                "Use 'Outros custos' apenas para valores adicionais, evitando duplicar embalagem ou sacola.",
+                                size=11,
+                                color=TEXTO_SECUNDARIO,
+                            ),
                             ft.Container(
                                 bgcolor=ROSA_CLARO,
                                 padding=12,
