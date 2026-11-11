@@ -977,7 +977,10 @@ def calcular_custo_mao_obra_proporcional(receita_id, fator_proporcao=1.0):
     if not receita_dados:
         return 0.0
     receita = receita_dados["receita"]
-    minutos_ativos = float(receita["tempo_preparo_min"] or 0) + float(receita["tempo_batedeira_min"] or 0)
+    # O tempo de preparo representa trabalho manual ativo.
+    # Batedeira e forno são tratados como tempo de ocupação, não de mão de obra,
+    # pois podem funcionar sem acompanhamento contínuo.
+    minutos_ativos = float(receita["tempo_preparo_min"] or 0)
     fator_proporcao = float(fator_proporcao)
     if fator_proporcao < 0:
         raise ValueError("A proporção da receita não pode ser negativa.")
