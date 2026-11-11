@@ -881,9 +881,11 @@ def calcular_precificacao_produto(receita_id):
 
     margem = precificacao["margem_lucro_pct"] / 100
     taxa = precificacao["taxa_cartao_pct"] / 100
+    impostos = obter_impostos_pct() / 100
     preco_com_margem = custo_unitario * (1 + margem)
-    divisor = 1 - taxa
-    if divisor <= 0: raise ValueError("A taxa do cartão precisa ser menor que 100%.")
+    divisor = 1 - taxa - impostos
+    if divisor <= 0:
+        raise ValueError("A soma dos impostos e da taxa do cartão precisa ser menor que 100%.")
     preco_venda = preco_com_margem / divisor
 
     return {
@@ -1057,7 +1059,13 @@ def calcular_precificacao_completa(receita_id, quantidade_venda, embalagem_id=No
     custo_sacola = calcular_custo_embalagem(sacola_id, quantidade_sacola) if sacola_id else 0.0
 
     custo_total = custo_insumos + custo_mao_obra + custo_fixo + custo_embalagem + custo_sacola
-    preco_sugerido = custo_total * (1 + markup)
+    impostos_pct = obter_impostos_pct()
+    taxas = obter_taxas_pagamento()
+    taxa_referencia = max([float(v) for v in taxas.values()] or [0.0])
+    divisor_preco = 1 - ((impostos_pct + taxa_referencia) / 100.0)
+    if divisor_preco <= 0:
+        raise ValueError("A soma dos impostos e taxas deve ser inferior a 100%.")
+    preco_sugerido = custo_total * (1 + markup) / divisor_preco
 
     return {
         "nome": receita["nome"], "rendimento": rendimento, "unidade_rendimento": receita["unidade_rendimento"],
@@ -1067,6 +1075,7 @@ def calcular_precificacao_completa(receita_id, quantidade_venda, embalagem_id=No
         "valor_hora_mao_obra": valor_hora_mao_obra, "custo_mao_obra": custo_mao_obra,
         "custo_embalagem": custo_embalagem, "custo_sacola": custo_sacola, "custo_total": custo_total,
         "markup": markup, "preco_sugerido": preco_sugerido,
+        "impostos_pct": impostos_pct, "taxa_referencia_pct": taxa_referencia,
     }
 
 def salvar_precificacao_completa(receita_id, quantidade_venda, embalagem_id, quantidade_embalagem, sacola_id, quantidade_sacola, markup, preco_praticado_centavos=None):
