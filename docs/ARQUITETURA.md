@@ -51,7 +51,8 @@ A versão analisada concentra a interface em `DM_Gulositos.py` e possui uma cama
 - [x] Extrair ingredientes para `telas/ingredientes.py`, com dependências injetadas.
 - [x] Extrair receitas e fichas técnicas para `telas/receitas.py`, com dependências injetadas.
 - [x] Extrair custos fixos, remuneração e parâmetros gerais para `telas/custos_fixos.py`.
-- [ ] Separar cálculos de precificação em serviços.
+- [x] Separar fórmulas puras de precificação em `servicos/precificacao_service.py`.
+- [x] Adicionar testes unitários para as fórmulas centrais de preço e margem.
 - [x] Extrair relatórios e painel inicial para `telas/relatorios.py`.
 - [ ] Criar/validar testes automatizados, execução web e build APK.
 
@@ -71,3 +72,8 @@ A tela de custos fixos foi extraída para `telas/custos_fixos.py`, preservando o
 
 
 Relatórios e painel inicial foram extraídos para `telas/relatorios.py`, preservando indicadores, relatórios de produtos e sub-receitas, atalhos, próximas encomendas e atividades recentes. As telas modulares usam uma referência compartilhada para a barra de navegação, pois ela é instanciada depois das fábricas de tela dentro de `main()`; isso evita acessar a variável antes de sua inicialização.
+
+
+## Serviço de precificação
+
+As fórmulas sem acesso a banco ou interface foram centralizadas em `servicos/precificacao_service.py`: cálculo do preço sugerido a partir de custo, markup, impostos e taxas; e cálculo dos indicadores do preço praticado (markup aplicado, margem de contribuição e resultado após rateio). A camada `database/banco.py` continua responsável por buscar os dados e orquestrar os custos, delegando essas fórmulas ao serviço. Foram adicionados testes unitários em `tests/test_precificacao_service.py`. Os testes ainda precisam ser executados no ambiente local do projeto.
