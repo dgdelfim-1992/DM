@@ -52,7 +52,7 @@ A versão analisada concentra a interface em `DM_Gulositos.py` e possui uma cama
 - [x] Extrair receitas e fichas técnicas para `telas/receitas.py`, com dependências injetadas.
 - [x] Extrair custos fixos, remuneração e parâmetros gerais para `telas/custos_fixos.py`.
 - [ ] Separar cálculos de precificação em serviços.
-- [ ] Extrair relatórios e painel inicial.
+- [x] Extrair relatórios e painel inicial para `telas/relatorios.py`.
 - [ ] Criar/validar testes automatizados, execução web e build APK.
 
 A extração da agenda preserva os filtros por status e data, ordenação das entregas, destaque de atrasos/entregas do dia e atualização do status de produção. A validação funcional ainda depende da execução local do aplicativo.
@@ -68,3 +68,6 @@ As telas de receitas e fichas técnicas foram extraídas para `telas/receitas.py
 
 
 A tela de custos fixos foi extraída para `telas/custos_fixos.py`, preservando o cadastro/edição/exclusão de despesas, faturamento mensal alvo, remuneração desejada, horas produtivas mensais, impostos, markup ideal, margem mínima e taxas por forma de pagamento. As funções de persistência existentes são injetadas no módulo. A validação funcional ainda depende da execução local.
+
+
+Relatórios e painel inicial foram extraídos para `telas/relatorios.py`, preservando indicadores, relatórios de produtos e sub-receitas, atalhos, próximas encomendas e atividades recentes. As telas modulares usam uma referência compartilhada para a barra de navegação, pois ela é instanciada depois das fábricas de tela dentro de `main()`; isso evita acessar a variável antes de sua inicialização.
