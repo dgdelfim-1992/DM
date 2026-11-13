@@ -1,4 +1,5 @@
 import unittest
+import json
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -471,6 +472,131 @@ class TestBancoCustosFixosEMaoDeObra(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             banco.salvar_taxas_pagamento({"pix": float("nan")})
+
+
+
+class TestBancoOrcamentos(unittest.TestCase):
+    def setUp(self):
+        self.pasta_temporaria = tempfile.TemporaryDirectory()
+        self.caminho_banco = Path(self.pasta_temporaria.name) / "teste_orcamentos.db"
+        self.patch_banco = patch.object(banco, "CAMINHO_BANCO", self.caminho_banco)
+        self.patch_banco.start()
+        banco.criar_tabelas()
+
+    def tearDown(self):
+        self.patch_banco.stop()
+        self.pasta_temporaria.cleanup()
+
+    def dados_validos(self):
+        item = {
+            "receita_id": None,
+            "nome": "Biscoito de teste",
+            "quantidade": 2,
+            "unidade": "un",
+            "custo_unitario_centavos": 500,
+            "preco_base_centavos": 1000,
+            "preco_final_unitario_centavos": 1000,
+            "subtotal_centavos": 2000,
+            "snapshot_json": json.dumps({"preco": 10}),
+        }
+        return {
+            "numero": "ORC-TESTE-001",
+            "cliente": "Cliente teste",
+            "status": "Em elaboração",
+            "validade": "",
+            "data_entrega": None,
+            "desconto_tipo": "nenhum",
+            "desconto_valor": 0,
+            "modalidade": "pix",
+            "total_referencia_centavos": 2000,
+            "total_final_centavos": 2000,
+            "itens_json": json.dumps([item]),
+            "resumo_json": json.dumps({"desconto_valor": 0}),
+            "mensagem": "Mensagem de teste",
+            "itens": [item],
+        }
+
+    def test_salva_orcamento_valido_com_item(self):
+        orcamento_id = banco.salvar_orcamento(self.dados_validos())
+        salvo = banco.obter_orcamento(orcamento_id)
+        self.assertIsNotNone(salvo)
+        self.assertEqual(salvo["numero"], "ORC-TESTE-001")
+        self.assertEqual(len(banco.listar_versoes_orcamento(orcamento_id)), 0)
+
+    def test_rejeita_dados_financeiros_e_quantidades_invalidas(self):
+        casos = []
+        dados = self.dados_validos()
+        dados["desconto_valor"] = float("nan")
+        casos.append(dados)
+        dados = self.dados_validos()
+        dados["desconto_valor"] = 100
+        dados["desconto_tipo"] = "percentual"
+        casos.append(dados)
+        dados = self.dados_validos()
+        dados["itens"][0]["quantidade"] = float("inf")
+        casos.append(dados)
+        dados = self.dados_validos()
+        dados["itens"][0]["quantidade"] = 0
+        casos.append(dados)
+        dados = self.dados_validos()
+        dados["itens"][0]["subtotal_centavos"] = -1
+        casos.append(dados)
+
+        for dados_invalidos in casos:
+            with self.subTest(dados=dados_invalidos):
+                with self.assertRaises(ValueError):
+                    banco.salvar_orcamento(dados_invalidos)
+        self.assertEqual(banco.listar_orcamentos(), [])
+
+    def test_edicao_invalida_preserva_orcamento_e_itens(self):
+        orcamento_id = banco.salvar_orcamento(self.dados_validos())
+        dados_invalidos = self.dados_validos()
+        dados_invalidos["cliente"] = "Não deve ser gravado"
+        dados_invalidos["itens"][0]["quantidade"] = float("nan")
+
+        with self.assertRaises(ValueError):
+            banco.atualizar_orcamento(orcamento_id, dados_invalidos)
+
+        salvo = banco.obter_orcamento(orcamento_id)
+        self.assertEqual(salvo["cliente"], "Cliente teste")
+        conexao = banco.obter_conexao()
+        try:
+            quantidade_itens = conexao.execute(
+                "SELECT COUNT(*) FROM orcamento_itens WHERE orcamento_id = ?",
+                (orcamento_id,),
+            ).fetchone()[0]
+        finally:
+            conexao.close()
+        self.assertEqual(quantidade_itens, 1)
+        self.assertEqual(len(banco.listar_versoes_orcamento(orcamento_id)), 0)
+
+    def test_mudanca_de_status_registra_snapshot_anterior(self):
+        orcamento_id = banco.salvar_orcamento(self.dados_validos())
+        banco.atualizar_status_orcamento(orcamento_id, "Enviado")
+
+        versoes = banco.listar_versoes_orcamento(orcamento_id)
+        self.assertEqual(len(versoes), 1)
+        snapshot = json.loads(versoes[0]["snapshot_json"])
+        self.assertEqual(snapshot["status"], "Em elaboração")
+        self.assertEqual(snapshot["_evento"], "alteracao_status")
+        self.assertEqual(snapshot["_status_anterior"], "Em elaboração")
+        self.assertEqual(snapshot["_status_novo"], "Enviado")
+        self.assertEqual(banco.obter_orcamento(orcamento_id)["status"], "Enviado")
+
+    def test_status_igual_nao_cria_versao_desnecessaria(self):
+        orcamento_id = banco.salvar_orcamento(self.dados_validos())
+        banco.atualizar_status_orcamento(orcamento_id, "Em elaboração")
+        self.assertEqual(len(banco.listar_versoes_orcamento(orcamento_id)), 0)
+
+    def test_atualizacao_de_status_rejeita_orcamento_inexistente(self):
+        with self.assertRaisesRegex(ValueError, "não encontrado"):
+            banco.atualizar_status_orcamento(9999, "Enviado")
+
+    def test_rejeita_status_invalido(self):
+        orcamento_id = banco.salvar_orcamento(self.dados_validos())
+        with self.assertRaisesRegex(ValueError, "Status"):
+            banco.atualizar_status_orcamento(orcamento_id, "Cancelado")
+        self.assertEqual(banco.obter_orcamento(orcamento_id)["status"], "Em elaboração")
 
 
 if __name__ == "__main__":
