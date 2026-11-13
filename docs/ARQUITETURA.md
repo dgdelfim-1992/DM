@@ -1,0 +1,40 @@
+# Arquitetura do DM Gulositos
+
+## Objetivo
+
+Evoluir o aplicativo de forma incremental, separando interface, regras de negócio e persistência sem perder funcionalidades nem dados existentes.
+
+## Estrutura adotada
+
+- `DM_Gulositos.py`: ponto de entrada e composição inicial da aplicação.
+- `telas/`: telas independentes, recebendo dependências por parâmetros/callbacks.
+- `componentes/`: componentes visuais compartilhados.
+- `servicos/`: regras de negócio e cálculos que não pertencem à interface.
+- `database/`: conexão, schema, consultas e migrações SQLite.
+- `assets/`: recursos visuais e arquivos estáticos.
+- `docs/`: documentação técnica e decisões de arquitetura.
+
+## Regras de manutenção
+
+1. Não alterar a branch `main` durante a refatoração.
+2. Não recriar nem apagar o banco de dados para acomodar mudanças de código.
+3. Alterações de schema devem ser feitas por migrações compatíveis e com backup prévio.
+4. Telas não devem executar SQL diretamente; devem chamar a camada `database` ou serviços.
+5. Cálculos de precificação e regras financeiras devem ser centralizados em serviços, preservando os resultados já validados.
+6. Componentes compartilhados devem receber parâmetros explícitos, evitando dependências ocultas da função `main`.
+7. Cada extração deve ser pequena, revisada e validada antes da próxima.
+8. Não incorporar branches divergentes inteiras; portar somente arquivos cuja compatibilidade tenha sido conferida.
+
+## Etapas
+
+1. Estabelecer uma branch isolada e corrigir a organização física da camada de banco.
+2. Extrair menu e componentes compartilhados por injeção de callbacks.
+3. Extrair telas individualmente, mantendo a navegação atual.
+4. Separar serviços de precificação, relatórios e validações.
+5. Introduzir migrações e testes automatizados para operações críticas.
+6. Desenvolver dashboard, clientes, estoque, financeiro e sincronização após a base modular estar estável.
+7. Validar execução web, APK e preservação de dados antes de abrir PR para `main`.
+
+## Situação inicial
+
+A versão analisada concentra a interface em `DM_Gulositos.py` e possui uma camada de persistência publicada em uma branch diferente. A camada de banco está sendo portada para `database/banco.py` sem mesclar o histórico divergente da branch `database`.
