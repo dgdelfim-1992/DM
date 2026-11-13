@@ -12,6 +12,7 @@ def criar_abrir_receitas(dependencias):
     TEXTO_SECUNDARIO = dependencias["TEXTO_SECUNDARIO"]
     indice_atual = dependencias["indice_atual"]
     navegacao_ref = dependencias["navegacao_ref"]
+    voltar_inicio = dependencias["voltar_inicio"]
     filtro_receita = dependencias["filtro_receita"]
     obter_conexao = dependencias["obter_conexao"]
     excluir_receita = dependencias["excluir_receita"]
