@@ -9,6 +9,7 @@ import json
 
 from logo_dm import LOGO_DM_BASE64
 from telas.menu import criar_tela_menu
+from componentes.ui import criar_componentes_padrao
 
 from database.banco import (
     CAMINHO_BANCO,
@@ -131,110 +132,21 @@ def main(page: ft.Page):
     # ==================================================
     # COMPONENTES VISUAIS PADRONIZADOS
     # ==================================================
-    def criar_campo_padrao(**kwargs):
-        kwargs.setdefault(
-            "border",
-            {
-                ft.ControlState.DEFAULT: ft.OutlineInputBorder(
-                    border_radius=12,
-                    side=ft.BorderSide(width=1, color=ROSA_CLARO),
-                ),
-                ft.ControlState.FOCUSED: ft.OutlineInputBorder(
-                    border_radius=12,
-                    side=ft.BorderSide(width=2, color=ROSA),
-                ),
-            },
-        )
-        kwargs.setdefault("cursor_color", ROSA)
-        kwargs.setdefault("label_style", ft.TextStyle(color=TEXTO_SECUNDARIO))
-        return ft.TextField(**kwargs)
-
-    def criar_dropdown_padrao(**kwargs):
-        kwargs.setdefault(
-            "border",
-            {
-                ft.ControlState.DEFAULT: ft.OutlineInputBorder(
-                    border_radius=12,
-                    side=ft.BorderSide(width=1, color=ROSA_CLARO),
-                ),
-                ft.ControlState.FOCUSED: ft.OutlineInputBorder(
-                    border_radius=12,
-                    side=ft.BorderSide(width=2, color=ROSA),
-                ),
-            },
-        )
-        kwargs.setdefault("label_style", ft.TextStyle(color=TEXTO_SECUNDARIO))
-        return ft.Dropdown(**kwargs)
-
-    def criar_dialogo_padrao(*args, **kwargs):
-        kwargs.setdefault("bgcolor", BRANCO)
-        kwargs.setdefault("shape", ft.RoundedRectangleBorder(radius=18))
-        return ft.AlertDialog(*args, **kwargs)
-
-
-    def criar_cabecalho_padrao(titulo, subtitulo, acao_voltar):
-        return ft.Container(
-            padding=ft.Padding.only(left=18, right=18, top=20, bottom=4),
-            content=ft.Row(
-                spacing=12,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                controls=[
-                    ft.Container(
-                        width=40,
-                        height=40,
-                        bgcolor=ROSA_CLARO,
-                        border_radius=12,
-                        alignment=ft.Alignment(0, 0),
-                        on_click=acao_voltar,
-                        content=ft.Icon(
-                            ft.Icons.ARROW_BACK_ROUNDED,
-                            color=MARROM,
-                            size=22,
-                        ),
-                    ),
-                    ft.Column(
-                        expand=True,
-                        spacing=3,
-                        controls=[
-                            ft.Text(
-                                titulo,
-                                size=22,
-                                weight=ft.FontWeight.BOLD,
-                                color=MARROM,
-                            ),
-                            ft.Text(
-                                subtitulo,
-                                size=12,
-                                color=TEXTO_SECUNDARIO,
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-        )
-
-    def criar_botao_primario(texto, acao, icone=ft.Icons.ADD):
-        return ft.Container(
-            height=52,
-            padding=ft.Padding.symmetric(horizontal=16),
-            bgcolor=ROSA,
-            border_radius=14,
-            on_click=acao,
-            alignment=ft.Alignment(0, 0),
-            content=ft.Row(
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=9,
-                controls=[
-                    ft.Icon(icone, color=BRANCO, size=21),
-                    ft.Text(
-                        texto,
-                        color=BRANCO,
-                        weight=ft.FontWeight.BOLD,
-                        size=14,
-                    ),
-                ],
-            ),
-        )
+    componentes = criar_componentes_padrao(
+        ft,
+        {
+            "marrom": MARROM,
+            "rosa": ROSA,
+            "rosa_claro": ROSA_CLARO,
+            "branco": BRANCO,
+            "texto_secundario": TEXTO_SECUNDARIO,
+        },
+    )
+    criar_campo_padrao = componentes["campo"]
+    criar_dropdown_padrao = componentes["dropdown"]
+    criar_dialogo_padrao = componentes["dialogo"]
+    criar_cabecalho_padrao = componentes["cabecalho"]
+    criar_botao_primario = componentes["botao_primario"]
 
     # ==================================================
     # BACKUP E RESTAURAÇÃO SEGURA DO BANCO
