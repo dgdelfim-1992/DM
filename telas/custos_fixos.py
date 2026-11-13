@@ -12,6 +12,7 @@ def criar_abrir_custos_fixos(dependencias):
     TEXTO_SECUNDARIO = dependencias["TEXTO_SECUNDARIO"]
     indice_atual = dependencias["indice_atual"]
     navegacao_ref = dependencias["navegacao_ref"]
+    voltar_inicio = dependencias["voltar_inicio"]
     obter_conexao = dependencias["obter_conexao"]
     obter_remuneracao_mensal_desejada = dependencias["obter_remuneracao_mensal_desejada"]
     obter_horas_produtivas_mensais = dependencias["obter_horas_produtivas_mensais"]
