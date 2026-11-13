@@ -50,6 +50,7 @@ A versão analisada concentra a interface em `DM_Gulositos.py` e possui uma cama
 - [x] Extrair orçamentos e histórico de versões para `telas/orcamentos.py`, com dependências injetadas pelo app principal.
 - [x] Extrair ingredientes para `telas/ingredientes.py`, com dependências injetadas.
 - [x] Extrair receitas e fichas técnicas para `telas/receitas.py`, com dependências injetadas.
+- [x] Extrair custos fixos, remuneração e parâmetros gerais para `telas/custos_fixos.py`.
 - [ ] Separar cálculos de precificação em serviços.
 - [ ] Extrair relatórios e painel inicial.
 - [ ] Criar/validar testes automatizados, execução web e build APK.
@@ -64,3 +65,6 @@ A tela de ingredientes foi extraída para `telas/ingredientes.py`, preservando l
 
 
 As telas de receitas e fichas técnicas foram extraídas para `telas/receitas.py`, preservando listagem e filtros por tipo, exclusão lógica com dupla confirmação, cadastro/edição, seleção de ingredientes e sub-receitas, rendimento e unidade, tempos de produção e gravação por meio das funções existentes de persistência. A validação funcional permanece pendente de execução local.
+
+
+A tela de custos fixos foi extraída para `telas/custos_fixos.py`, preservando o cadastro/edição/exclusão de despesas, faturamento mensal alvo, remuneração desejada, horas produtivas mensais, impostos, markup ideal, margem mínima e taxas por forma de pagamento. As funções de persistência existentes são injetadas no módulo. A validação funcional ainda depende da execução local.
