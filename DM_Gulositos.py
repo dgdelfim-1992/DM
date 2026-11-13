@@ -1285,8 +1285,8 @@ def main(page: ft.Page):
                 if margem_minima < 0 or margem_minima >= 100:
                     raise ValueError("A margem mínima deve estar entre 0% e 99,99%.")
 
-                # Mantém o crédito à vista como taxa de referência do histórico legado
-                # e como critério atual de validação do salvamento.
+                # Usa a mesma maior taxa da simulação e da listagem,
+                # mantendo o status salvo coerente com o preço sugerido.
                 salvar_precificacao_v2(
                     precificacao_id,
                     rec_id,
