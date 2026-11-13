@@ -13,7 +13,7 @@ def criar_telas_relatorios(dependencias):
     ROSA_CLARO = dependencias["ROSA_CLARO"]
     TEXTO_SECUNDARIO = dependencias["TEXTO_SECUNDARIO"]
     indice_atual = dependencias["indice_atual"]
-    navegacao = dependencias["navegacao"]
+    navegacao_ref = dependencias["navegacao_ref"]
     obter_conexao = dependencias["obter_conexao"]
     calcular_custo_receita = dependencias["calcular_custo_receita"]
     calcular_precificacao_produto = dependencias["calcular_precificacao_produto"]
@@ -382,7 +382,7 @@ def criar_telas_relatorios(dependencias):
         )
     
         indice_atual["valor"] = 2
-        navegacao.selected_index = 2
+        navegacao_ref["controle"].selected_index = 2
         page.controls.clear()
         page.add(tela)
         page.update()
