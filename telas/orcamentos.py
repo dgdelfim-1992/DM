@@ -32,7 +32,7 @@ def criar_abrir_orcamentos(dependencias):
     atualizar_orcamento_salvo = dependencias["atualizar_orcamento_salvo"]
     salvar_orcamento = dependencias["salvar_orcamento"]
 
-    def abrir_orcamentos(e=None, orcamento_id=None, filtro_status=None):
+    def abrir_orcamentos(e=None, orcamento_id=None, filtro_status=None, novo=False):
         filtro_status_atual = {"valor": filtro_status or "Todos"}
         registro_edicao = obter_orcamento(orcamento_id) if orcamento_id else None
         precificacoes = listar_precificacoes()
@@ -230,7 +230,18 @@ def criar_abrir_orcamentos(dependencias):
                 ],
             )
             tela = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14, controls=[
-                cabecalho_orcamentos("Histórico de orçamentos", abrir_orcamentos),
+                cabecalho_orcamentos("Orçamentos", abrir_menu_opcoes),
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=18),
+                    content=ft.Button(
+                        "Novo orçamento",
+                        icon=ft.Icons.ADD,
+                        on_click=lambda ev: abrir_orcamentos(novo=True),
+                        bgcolor=ROSA,
+                        color=BRANCO,
+                        expand=True,
+                    ),
+                ),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Column(spacing=8, controls=[
                     ft.Text("Filtrar por status", size=12, weight=ft.FontWeight.BOLD, color=MARROM),
                     botoes_filtro,
@@ -353,10 +364,6 @@ def criar_abrir_orcamentos(dependencias):
                     ft.Text(titulo, size=21, weight=ft.FontWeight.BOLD, color=MARROM),
                 ])
             )
-    
-        if not produtos and not registro_edicao:
-            mostrar_aviso("Cadastre e salve a precificação de pelo menos um Produto Final.", "#C62828")
-            return
     
         cliente = criar_campo_padrao(label="Nome do cliente (opcional)", value=(registro_edicao["cliente"] or "") if registro_edicao else "", border_radius=10)
         validade = criar_campo_padrao(label="Validade do orçamento (ex.: 7 dias)", value=(registro_edicao["validade"] or "7 dias") if registro_edicao else "7 dias", border_radius=10)
@@ -633,7 +640,10 @@ def criar_abrir_orcamentos(dependencias):
         )
     
         tela = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14, controls=[
-            cabecalho_orcamentos("Editar orçamento" if registro_edicao else "Novo orçamento", abrir_menu_opcoes),
+            cabecalho_orcamentos(
+                "Editar orçamento" if registro_edicao else "Novo orçamento",
+                lambda ev: montar_tela_historico(),
+            ),
             ft.Container(padding=ft.Padding.symmetric(horizontal=18), content=ft.Column(spacing=12, controls=[
                 ft.Text("Editar orçamento" if registro_edicao else "Dados do cliente", size=15, weight=ft.FontWeight.BOLD, color=MARROM),
                 cliente, validade, data_entrega,
@@ -661,9 +671,19 @@ def criar_abrir_orcamentos(dependencias):
         indice_atual["valor"] = 2
         navegacao_ref["controle"].selected_index = 2
         page.controls.clear()
-        if filtro_status is not None:
+
+        # A entrada no módulo mostra a listagem; Novo e Editar abrem o formulário.
+        if not novo and not registro_edicao and filtro_status is None:
+            montar_tela_historico()
+            return
+        if filtro_status is not None and not novo and not registro_edicao:
             montar_tela_historico(filtro_status)
             return
+        if not produtos and not registro_edicao:
+            mostrar_aviso("Cadastre e salve a precificação de pelo menos um Produto Final.", "#C62828")
+            montar_tela_historico()
+            return
+
         page.add(tela)
         atualizar_orcamento()
         page.update()
