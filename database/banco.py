@@ -1,4 +1,5 @@
 import sqlite3
+import math
 import json
 from pathlib import Path
 from datetime import datetime, date, timedelta
@@ -270,7 +271,16 @@ def criar_tabelas():
 # CONVERSÃO DE UNIDADES
 # =========================================================
 def converter_para_base(quantidade, unidade):
-    unidade = unidade.strip().lower()
+    """Converte kg/g, l/ml ou unidades para a unidade-base correspondente."""
+    try:
+        quantidade = float(quantidade)
+    except (TypeError, ValueError) as erro:
+        raise ValueError("A quantidade deve ser numérica.") from erro
+
+    if not math.isfinite(quantidade) or quantidade <= 0:
+        raise ValueError("A quantidade precisa ser um número finito maior que zero.")
+
+    unidade = (unidade or "").strip().lower()
     conversoes = {
         "kg": (1000, "g"),
         "g": (1, "g"),
@@ -284,14 +294,24 @@ def converter_para_base(quantidade, unidade):
     }
     if unidade not in conversoes:
         raise ValueError(f"Unidade não reconhecida: {unidade}")
-    if quantidade <= 0:
-        raise ValueError("A quantidade precisa ser maior que zero.")
+
     fator, unidade_base = conversoes[unidade]
     return quantidade * fator, unidade_base
 
+
 def calcular_custo_unitario(preco_pago_centavos, quantidade_base):
+    """Calcula o custo por unidade-base, rejeitando entradas inválidas."""
+    try:
+        preco_pago_centavos = float(preco_pago_centavos)
+        quantidade_base = float(quantidade_base)
+    except (TypeError, ValueError) as erro:
+        raise ValueError("Preço e quantidade devem ser numéricos.") from erro
+
+    if not math.isfinite(preco_pago_centavos) or not math.isfinite(quantidade_base):
+        raise ValueError("Preço e quantidade devem ser números finitos.")
     if preco_pago_centavos < 0 or quantidade_base <= 0:
-        raise ValueError("Valores inválidos para cálculo.")
+        raise ValueError("O preço não pode ser negativo e a quantidade deve ser maior que zero.")
+
     return (preco_pago_centavos / 100) / quantidade_base
 
 
