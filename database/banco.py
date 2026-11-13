@@ -672,31 +672,60 @@ def excluir_ingrediente(ingrediente_id):
 # =========================================================
 # CUSTOS FIXOS
 # =========================================================
+def _validar_custo_fixo(descricao, valor_centavos):
+    descricao = (descricao or "").strip()
+    if not descricao:
+        raise ValueError("Informe a descrição do custo fixo.")
+
+    try:
+        valor_numerico = float(valor_centavos)
+    except (TypeError, ValueError) as erro:
+        raise ValueError("O valor do custo fixo deve ser numérico.") from erro
+
+    if not math.isfinite(valor_numerico) or valor_numerico < 0:
+        raise ValueError("O valor do custo fixo deve ser finito e não negativo.")
+    if not valor_numerico.is_integer():
+        raise ValueError("O valor do custo fixo deve ser informado em centavos inteiros.")
+
+    return descricao, int(valor_numerico)
+
+
 def cadastrar_custo_fixo(descricao, valor_centavos):
+    descricao, valor_centavos = _validar_custo_fixo(descricao, valor_centavos)
     conexao = obter_conexao()
     try:
-        conexao.execute("""
+        cursor = conexao.execute("""
             INSERT INTO custos_fixos (descricao, valor_centavos) VALUES (?, ?)
-        """, (descricao.strip(), valor_centavos))
+        """, (descricao, valor_centavos))
         conexao.commit()
+        return cursor.lastrowid
     finally:
         conexao.close()
 
+
 def atualizar_custo_fixo(custo_id, descricao, valor_centavos):
+    descricao, valor_centavos = _validar_custo_fixo(descricao, valor_centavos)
     conexao = obter_conexao()
     try:
-        conexao.execute("""
+        cursor = conexao.execute("""
             UPDATE custos_fixos SET descricao = ?, valor_centavos = ? WHERE id = ?
-        """, (descricao.strip(), valor_centavos, custo_id))
+        """, (descricao, valor_centavos, custo_id))
+        if cursor.rowcount == 0:
+            raise ValueError("Custo fixo não encontrado.")
         conexao.commit()
+        return True
     finally:
         conexao.close()
+
 
 def excluir_custo_fixo(custo_id):
     conexao = obter_conexao()
     try:
-        conexao.execute("DELETE FROM custos_fixos WHERE id = ?", (custo_id,))
+        cursor = conexao.execute("DELETE FROM custos_fixos WHERE id = ?", (custo_id,))
+        if cursor.rowcount == 0:
+            raise ValueError("Custo fixo não encontrado.")
         conexao.commit()
+        return True
     finally:
         conexao.close()
 
@@ -1149,8 +1178,12 @@ def obter_horas_produtivas_mensais():
         con.close()
 
 def salvar_horas_produtivas_mensais(horas):
-    horas = float(horas)
-    if horas <= 0: raise ValueError("As horas produtivas devem ser maiores que zero.")
+    try:
+        horas = float(horas)
+    except (TypeError, ValueError) as erro:
+        raise ValueError("As horas produtivas devem ser numéricas.") from erro
+    if not math.isfinite(horas) or horas <= 0:
+        raise ValueError("As horas produtivas devem ser finitas e maiores que zero.")
     con = obter_conexao()
     try:
         con.execute("""
@@ -1172,9 +1205,12 @@ def obter_remuneracao_mensal_desejada():
 
 
 def salvar_remuneracao_mensal_desejada(valor):
-    valor = float(valor)
-    if valor < 0:
-        raise ValueError("A remuneração mensal desejada não pode ser negativa.")
+    try:
+        valor = float(valor)
+    except (TypeError, ValueError) as erro:
+        raise ValueError("A remuneração mensal desejada deve ser numérica.") from erro
+    if not math.isfinite(valor) or valor < 0:
+        raise ValueError("A remuneração mensal desejada deve ser finita e não negativa.")
     con = obter_conexao()
     try:
         con.execute("""INSERT INTO configuracoes(chave, valor)
@@ -1196,10 +1232,12 @@ def calcular_custo_mao_obra_proporcional(receita_id, fator_proporcao=1.0):
     if not receita_dados:
         return 0.0
     receita = receita_dados["receita"]
-    # O tempo de preparo representa trabalho manual ativo.
-    # Batedeira e forno são tratados como tempo de ocupação, não de mão de obra,
-    # pois podem funcionar sem acompanhamento contínuo.
-    minutos_ativos = float(receita["tempo_preparo_min"] or 0)
+    # Preparo e acompanhamento da batedeira compõem o trabalho direto.
+    # O forno é tratado como tempo passivo de ocupação, sem mão de obra direta.
+    minutos_ativos = (
+        float(receita["tempo_preparo_min"] or 0)
+        + float(receita["tempo_batedeira_min"] or 0)
+    )
     fator_proporcao = float(fator_proporcao)
     if fator_proporcao < 0:
         raise ValueError("A proporção da receita não pode ser negativa.")
@@ -1649,9 +1687,12 @@ def salvar_taxas_pagamento(taxas):
     }
     valores = {}
     for campo, chave in chaves.items():
-        valor = float(taxas.get(campo, 0))
-        if valor < 0 or valor >= 100:
-            raise ValueError("Cada taxa deve estar entre 0% e 99,99%.")
+        try:
+            valor = float(taxas.get(campo, 0))
+        except (TypeError, ValueError) as erro:
+            raise ValueError("Cada taxa deve ser numérica.") from erro
+        if not math.isfinite(valor) or valor < 0 or valor >= 100:
+            raise ValueError("Cada taxa deve ser finita e estar entre 0% e 99,99%.")
         valores[chave] = str(valor)
 
     conexao = obter_conexao()
@@ -1692,9 +1733,12 @@ def obter_impostos_pct():
 
 
 def salvar_impostos_pct(valor):
-    valor = float(valor)
-    if valor < 0 or valor >= 100:
-        raise ValueError("Os impostos devem estar entre 0% e 99,99%.")
+    try:
+        valor = float(valor)
+    except (TypeError, ValueError) as erro:
+        raise ValueError("Os impostos devem ser numéricos.") from erro
+    if not math.isfinite(valor) or valor < 0 or valor >= 100:
+        raise ValueError("Os impostos devem ser finitos e estar entre 0% e 99,99%.")
     conexao = obter_conexao()
     try:
         conexao.execute(
@@ -1720,9 +1764,12 @@ def obter_markup_ideal():
 
 
 def salvar_markup_ideal(valor):
-    valor = float(valor)
-    if valor < 0 or valor >= 10000:
-        raise ValueError("O markup ideal deve estar entre 0% e 9999,99%.")
+    try:
+        valor = float(valor)
+    except (TypeError, ValueError) as erro:
+        raise ValueError("O markup ideal deve ser numérico.") from erro
+    if not math.isfinite(valor) or valor < 0 or valor >= 10000:
+        raise ValueError("O markup ideal deve ser finito e estar entre 0% e 9999,99%.")
     conexao = obter_conexao()
     try:
         conexao.execute(
@@ -1749,9 +1796,12 @@ def obter_margem_minima():
 
 
 def salvar_margem_minima(valor):
-    valor = float(valor)
-    if valor < 0 or valor >= 100:
-        raise ValueError("A margem mínima deve estar entre 0% e 99,99%.")
+    try:
+        valor = float(valor)
+    except (TypeError, ValueError) as erro:
+        raise ValueError("A margem mínima deve ser numérica.") from erro
+    if not math.isfinite(valor) or valor < 0 or valor >= 100:
+        raise ValueError("A margem mínima deve ser finita e estar entre 0% e 99,99%.")
 
     conexao = obter_conexao()
     try:
