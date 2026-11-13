@@ -264,15 +264,88 @@ def criar_abrir_orcamentos(dependencias):
         def abrir_historico_versoes(orcamento_id):
             versoes = listar_versoes_orcamento(orcamento_id)
     
-            def visualizar_versao(mensagem, numero_versao):
+            def visualizar_versao(dados_versao, numero_versao):
+                """Exibe os dados completos que estavam salvos naquela versão."""
+                controles_versao = [
+                    ft.Text(f'Orçamento: {dados_versao.get("numero", "Não informado")}', weight=ft.FontWeight.BOLD, color=MARROM),
+                    ft.Text(f'Cliente: {dados_versao.get("cliente") or "Não informado"}'),
+                    ft.Text(f'Status: {dados_versao.get("status", "Não informado")}'),
+                    ft.Text(f'Validade: {dados_versao.get("validade") or "Não informada"}'),
+                    ft.Text(f'Data de entrega: {dados_versao.get("data_entrega") or "Não informada"}'),
+                    ft.Divider(),
+                    ft.Text("Valores", weight=ft.FontWeight.BOLD, color=MARROM),
+                    ft.Text(f'Total de referência: {formatar_reais((dados_versao.get("total_referencia_centavos") or 0) / 100)}'),
+                    ft.Text(f'Total final (Pix): {formatar_reais((dados_versao.get("total_final_centavos") or 0) / 100)}'),
+                    ft.Text(f'Desconto: {dados_versao.get("desconto_tipo", "nenhum")} — {dados_versao.get("desconto_valor", 0)}'),
+                ]
+
+                try:
+                    itens_versao = json.loads(dados_versao.get("itens_json") or "[]")
+                except (TypeError, json.JSONDecodeError):
+                    itens_versao = []
+
+                controles_versao.extend([
+                    ft.Divider(),
+                    ft.Text("Produtos do orçamento", weight=ft.FontWeight.BOLD, color=MARROM),
+                ])
+                if itens_versao:
+                    for item in itens_versao:
+                        quantidade_item = item.get("quantidade", 0)
+                        unidade_item = item.get("unidade", "")
+                        subtotal_item = (item.get("subtotal_centavos") or 0) / 100
+                        preco_unitario = (item.get("preco_final_unitario_centavos") or 0) / 100
+                        controles_versao.append(
+                            ft.Container(
+                                padding=8,
+                                border_radius=8,
+                                bgcolor=ROSA_CLARO,
+                                content=ft.Column(spacing=3, controls=[
+                                    ft.Text(item.get("nome", "Produto"), weight=ft.FontWeight.BOLD, color=MARROM),
+                                    ft.Text(f'Quantidade: {quantidade_item} {unidade_item}'),
+                                    ft.Text(f'Valor unitário: {formatar_reais(preco_unitario)}'),
+                                    ft.Text(f'Subtotal: {formatar_reais(subtotal_item)}', weight=ft.FontWeight.BOLD),
+                                ]),
+                            )
+                        )
+                else:
+                    controles_versao.append(ft.Text("Nenhum item detalhado disponível nesta versão.", color=TEXTO_SECUNDARIO))
+
+                if dados_versao.get("mensagem"):
+                    controles_versao.extend([
+                        ft.Divider(),
+                        ft.Text("Mensagem gerada para o cliente", weight=ft.FontWeight.BOLD, color=MARROM),
+                        criar_campo_padrao(
+                            value=dados_versao["mensagem"],
+                            multiline=True,
+                            min_lines=6,
+                            max_lines=12,
+                            read_only=True,
+                        ),
+                    ])
+
+                if dados_versao.get("_evento") == "alteracao_status":
+                    controles_versao.insert(
+                        3,
+                        ft.Text(
+                            f'Status alterado: {dados_versao.get("_status_anterior", "Não informado")} → '
+                            f'{dados_versao.get("_status_novo", "Não informado")}',
+                            weight=ft.FontWeight.BOLD,
+                            color="#285A83",
+                        ),
+                    )
+
                 dlg = criar_dialogo_padrao(
                     modal=True,
                     title=ft.Text(f"Versão anterior — {numero_versao}"),
                     content=ft.Container(
-                        width=380,
-                        content=criar_campo_padrao(value=mensagem, multiline=True, min_lines=10, max_lines=18, read_only=True)
+                        width=440,
+                        content=ft.Column(
+                            controls=controles_versao,
+                            spacing=8,
+                            scroll=ft.ScrollMode.AUTO,
+                        ),
                     ),
-                    actions=[ft.TextButton("Fechar", on_click=lambda ev: fechar_dialogo(dlg))]
+                    actions=[ft.TextButton("Fechar", on_click=lambda ev: fechar_dialogo(dlg))],
                 )
                 page.overlay.append(dlg)
                 dlg.open = True
@@ -308,7 +381,7 @@ def criar_abrir_orcamentos(dependencias):
                             ),
                             ft.TextButton(
                                 "Ver versão",
-                                on_click=lambda ev, msg=dados_anteriores["mensagem"], num=versao["numero"]: visualizar_versao(msg, num),
+                                on_click=lambda ev, dados=dict(dados_anteriores), num=versao["numero"]: visualizar_versao(dados, num),
                             ),
                         ])
                     )
