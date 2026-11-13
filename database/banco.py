@@ -730,35 +730,206 @@ def listar_custos_fixos():
 # =========================================================
 # RECEITAS E SUB-RECEITAS
 # =========================================================
-def cadastrar_receita(nome, tipo, rendimento_unidades, custo_embalagem_centavos, margem_lucro_pct, taxa_cartao_pct, lista_itens, tempo_preparo_min=0, tempo_batedeira_min=0, tempo_forno_min=0, unidade_rendimento="un"):
+def _validar_dados_receita(
+    conexao,
+    nome,
+    tipo,
+    rendimento_unidades,
+    custo_embalagem_centavos,
+    margem_lucro_pct,
+    taxa_cartao_pct,
+    lista_itens,
+    tempo_preparo_min,
+    tempo_batedeira_min,
+    tempo_forno_min,
+    unidade_rendimento,
+    receita_id=None,
+):
+    """Valida e normaliza os dados antes de gravar uma ficha técnica."""
     nome = (nome or "").strip()
+    tipo = (tipo or "").strip().upper()
     unidade_rendimento = (unidade_rendimento or "un").strip().lower()
 
-    if not nome: raise ValueError("Informe o nome da receita.")
-    if rendimento_unidades <= 0: raise ValueError("O rendimento precisa ser maior que zero.")
-    if unidade_rendimento not in ("un", "g"): raise ValueError("A unidade de rendimento deve ser un ou g.")
-    tempos = [tempo_preparo_min, tempo_batedeira_min, tempo_forno_min]
-    if any(tempo < 0 for tempo in tempos): raise ValueError("Os tempos não podem ser negativos.")
+    if not nome:
+        raise ValueError("Informe o nome da receita.")
+    if tipo not in ("PRODUTO", "SUB_RECEITA"):
+        raise ValueError("O tipo de receita deve ser PRODUTO ou SUB_RECEITA.")
+    if unidade_rendimento not in ("un", "g"):
+        raise ValueError("A unidade de rendimento deve ser un ou g.")
 
-    agora_iso = datetime.now().isoformat(timespec="seconds")
+    def numero_finito(valor, descricao, minimo=None, estritamente_maior=False):
+        try:
+            numero = float(valor)
+        except (TypeError, ValueError) as erro:
+            raise ValueError(f"{descricao} deve ser numérico.") from erro
+        if not math.isfinite(numero):
+            raise ValueError(f"{descricao} deve ser um número finito.")
+        if minimo is not None:
+            if estritamente_maior and numero <= minimo:
+                raise ValueError(f"{descricao} deve ser maior que {minimo}.")
+            if not estritamente_maior and numero < minimo:
+                raise ValueError(f"{descricao} não pode ser negativo.")
+        return numero
+
+    rendimento = numero_finito(
+        rendimento_unidades, "O rendimento", minimo=0, estritamente_maior=True
+    )
+    embalagem = numero_finito(
+        custo_embalagem_centavos, "O custo de embalagem", minimo=0
+    )
+    margem = numero_finito(margem_lucro_pct, "A margem de lucro", minimo=0)
+    taxa = numero_finito(taxa_cartao_pct, "A taxa de cartão", minimo=0)
+    tempos = [
+        numero_finito(tempo_preparo_min, "O tempo de preparo", minimo=0),
+        numero_finito(tempo_batedeira_min, "O tempo de batedeira", minimo=0),
+        numero_finito(tempo_forno_min, "O tempo de forno", minimo=0),
+    ]
+
+    if not isinstance(lista_itens, (list, tuple)) or not lista_itens:
+        raise ValueError("Adicione ao menos um ingrediente ou sub-receita.")
+
+    itens_normalizados = []
+    for indice, item in enumerate(lista_itens, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"O item {indice} da receita é inválido.")
+
+        ingrediente_id = item.get("ingrediente_id")
+        sub_receita_id = item.get("sub_receita_id")
+        tem_ingrediente = ingrediente_id is not None
+        tem_sub_receita = sub_receita_id is not None
+
+        if tem_ingrediente == tem_sub_receita:
+            raise ValueError(
+                f"O item {indice} deve informar somente um ingrediente ou uma sub-receita."
+            )
+
+        quantidade = numero_finito(
+            item.get("quantidade_usada"),
+            f"A quantidade do item {indice}",
+            minimo=0,
+            estritamente_maior=True,
+        )
+
+        if tem_ingrediente:
+            try:
+                ingrediente_id = int(ingrediente_id)
+            except (TypeError, ValueError) as erro:
+                raise ValueError(f"O ingrediente do item {indice} é inválido.") from erro
+            ingrediente = conexao.execute(
+                "SELECT id FROM ingredientes WHERE id = ? AND ativo = 1",
+                (ingrediente_id,),
+            ).fetchone()
+            if not ingrediente:
+                raise ValueError(f"O ingrediente do item {indice} não existe ou está inativo.")
+            itens_normalizados.append({
+                "ingrediente_id": ingrediente_id,
+                "sub_receita_id": None,
+                "quantidade_usada": quantidade,
+            })
+        else:
+            try:
+                sub_receita_id = int(sub_receita_id)
+            except (TypeError, ValueError) as erro:
+                raise ValueError(f"A sub-receita do item {indice} é inválida.") from erro
+            sub_receita = conexao.execute(
+                """
+                SELECT id FROM receitas
+                WHERE id = ? AND ativo = 1 AND tipo = 'SUB_RECEITA'
+                """,
+                (sub_receita_id,),
+            ).fetchone()
+            if not sub_receita:
+                raise ValueError(
+                    f"A sub-receita do item {indice} não existe, está inativa ou não é uma sub-receita."
+                )
+
+            if receita_id is not None:
+                ciclo = conexao.execute(
+                    """
+                    WITH RECURSIVE dependencias(id) AS (
+                        SELECT ?
+                        UNION
+                        SELECT ri.sub_receita_id
+                        FROM receita_itens ri
+                        JOIN dependencias d ON ri.receita_pai_id = d.id
+                        WHERE ri.sub_receita_id IS NOT NULL
+                    )
+                    SELECT 1 FROM dependencias WHERE id = ? LIMIT 1
+                    """,
+                    (sub_receita_id, receita_id),
+                ).fetchone()
+                if ciclo:
+                    raise ValueError(
+                        "Esta alteração criaria um ciclo entre receitas e sub-receitas."
+                    )
+
+            itens_normalizados.append({
+                "ingrediente_id": None,
+                "sub_receita_id": sub_receita_id,
+                "quantidade_usada": quantidade,
+            })
+
+    return {
+        "nome": nome,
+        "tipo": tipo,
+        "rendimento_unidades": rendimento,
+        "custo_embalagem_centavos": embalagem,
+        "margem_lucro_pct": margem,
+        "taxa_cartao_pct": taxa,
+        "lista_itens": itens_normalizados,
+        "tempo_preparo_min": tempos[0],
+        "tempo_batedeira_min": tempos[1],
+        "tempo_forno_min": tempos[2],
+        "unidade_rendimento": unidade_rendimento,
+    }
+
+
+def cadastrar_receita(nome, tipo, rendimento_unidades, custo_embalagem_centavos, margem_lucro_pct, taxa_cartao_pct, lista_itens, tempo_preparo_min=0, tempo_batedeira_min=0, tempo_forno_min=0, unidade_rendimento="un"):
     conexao = obter_conexao()
-
     try:
-        cursor = conexao.execute("""
+        dados = _validar_dados_receita(
+            conexao,
+            nome,
+            tipo,
+            rendimento_unidades,
+            custo_embalagem_centavos,
+            margem_lucro_pct,
+            taxa_cartao_pct,
+            lista_itens,
+            tempo_preparo_min,
+            tempo_batedeira_min,
+            tempo_forno_min,
+            unidade_rendimento,
+        )
+        agora_iso = datetime.now().isoformat(timespec="seconds")
+        cursor = conexao.execute(
+            """
             INSERT INTO receitas (
                 nome, tipo, rendimento_unidades, custo_embalagem_centavos, margem_lucro_pct, taxa_cartao_pct,
                 ativo, criado_em, atualizado_em, tempo_preparo_min, tempo_batedeira_min, tempo_forno_min, unidade_rendimento
             ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
-        """, (
-            nome, tipo, rendimento_unidades, custo_embalagem_centavos, margem_lucro_pct, taxa_cartao_pct,
-            agora_iso, agora_iso, tempo_preparo_min, tempo_batedeira_min, tempo_forno_min, unidade_rendimento
-        ))
+            """,
+            (
+                dados["nome"], dados["tipo"], dados["rendimento_unidades"],
+                dados["custo_embalagem_centavos"], dados["margem_lucro_pct"],
+                dados["taxa_cartao_pct"], agora_iso, agora_iso,
+                dados["tempo_preparo_min"], dados["tempo_batedeira_min"],
+                dados["tempo_forno_min"], dados["unidade_rendimento"],
+            ),
+        )
         receita_id = cursor.lastrowid
-        for item in lista_itens:
-            conexao.execute("""
-                INSERT INTO receita_itens (receita_pai_id, ingrediente_id, sub_receita_id, quantidade_usada)
-                VALUES (?, ?, ?, ?)
-            """, (receita_id, item.get("ingrediente_id"), item.get("sub_receita_id"), item["quantidade_usada"]))
+        for item in dados["lista_itens"]:
+            conexao.execute(
+                """
+                INSERT INTO receita_itens (
+                    receita_pai_id, ingrediente_id, sub_receita_id, quantidade_usada
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (
+                    receita_id, item["ingrediente_id"],
+                    item["sub_receita_id"], item["quantidade_usada"],
+                ),
+            )
         conexao.commit()
         return receita_id
     finally:
