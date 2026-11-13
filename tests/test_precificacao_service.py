@@ -157,5 +157,167 @@ class TestBancoIngredientes(unittest.TestCase):
         self.assertEqual(len(banco.listar_ingredientes()), 0)
 
 
+
+class TestBancoReceitas(unittest.TestCase):
+    def setUp(self):
+        self.pasta_temporaria = tempfile.TemporaryDirectory()
+        self.caminho_banco = Path(self.pasta_temporaria.name) / "teste_receitas.db"
+        self.patch_banco = patch.object(banco, "CAMINHO_BANCO", self.caminho_banco)
+        self.patch_banco.start()
+        banco.criar_tabelas()
+        self.ingrediente_id = banco.cadastrar_ingrediente(
+            nome="Farinha de teste",
+            marca="Marca",
+            fornecedor="Fornecedor",
+            quantidade_compra=1000,
+            unidade_compra="g",
+            preco_pago_centavos=500,
+        )
+
+    def tearDown(self):
+        self.patch_banco.stop()
+        self.pasta_temporaria.cleanup()
+
+    def item_ingrediente(self, quantidade=100, ingrediente_id=None):
+        return {
+            "ingrediente_id": ingrediente_id or self.ingrediente_id,
+            "quantidade_usada": quantidade,
+        }
+
+    def cadastrar(self, nome="Receita teste", tipo="PRODUTO", itens=None):
+        return banco.cadastrar_receita(
+            nome=nome,
+            tipo=tipo,
+            rendimento_unidades=10,
+            custo_embalagem_centavos=0,
+            margem_lucro_pct=0,
+            taxa_cartao_pct=0,
+            lista_itens=itens if itens is not None else [self.item_ingrediente()],
+        )
+
+    def test_cadastra_receita_e_calcula_custo(self):
+        receita_id = self.cadastrar()
+        resultado = banco.calcular_custo_receita(receita_id)
+        self.assertAlmostEqual(resultado["custo_insumos"], 0.5)
+        self.assertAlmostEqual(resultado["custo_unitario"], 0.05)
+
+    def test_rejeita_rendimento_e_tempos_nao_finitos(self):
+        base = {
+            "nome": "Receita inválida",
+            "tipo": "PRODUTO",
+            "rendimento_unidades": 10,
+            "custo_embalagem_centavos": 0,
+            "margem_lucro_pct": 0,
+            "taxa_cartao_pct": 0,
+            "lista_itens": [self.item_ingrediente()],
+        }
+        casos = [
+            {"rendimento_unidades": float("nan")},
+            {"rendimento_unidades": float("inf")},
+            {"tempo_preparo_min": float("nan")},
+            {"tempo_batedeira_min": float("inf")},
+            {"tempo_forno_min": -1},
+        ]
+        for alteracao in casos:
+            with self.subTest(alteracao=alteracao):
+                parametros = {**base, **alteracao}
+                with self.assertRaises(ValueError):
+                    banco.cadastrar_receita(**parametros)
+        conexao = banco.obter_conexao()
+        try:
+            total = conexao.execute("SELECT COUNT(*) FROM receitas").fetchone()[0]
+        finally:
+            conexao.close()
+        self.assertEqual(total, 0)
+
+    def test_rejeita_item_sem_ou_com_dois_vinculos(self):
+        casos = [
+            {"quantidade_usada": 10},
+            {
+                "ingrediente_id": self.ingrediente_id,
+                "sub_receita_id": 999,
+                "quantidade_usada": 10,
+            },
+        ]
+        for item in casos:
+            with self.subTest(item=item):
+                with self.assertRaises(ValueError):
+                    self.cadastrar(itens=[item])
+
+    def test_rejeita_quantidade_de_item_invalida(self):
+        for quantidade in (0, -1, float("nan"), float("inf"), "abc", None):
+            with self.subTest(quantidade=quantidade):
+                with self.assertRaises(ValueError):
+                    self.cadastrar(itens=[self.item_ingrediente(quantidade)])
+
+    def test_rejeita_ingrediente_inexistente(self):
+        with self.assertRaises(ValueError):
+            self.cadastrar(itens=[self.item_ingrediente(100, ingrediente_id=9999)])
+
+    def test_rejeita_produto_como_sub_receita(self):
+        produto_id = self.cadastrar(nome="Produto existente")
+        with self.assertRaises(ValueError):
+            self.cadastrar(
+                nome="Receita que tenta usar produto",
+                itens=[{
+                    "sub_receita_id": produto_id,
+                    "quantidade_usada": 1,
+                }],
+            )
+
+    def test_impede_ciclo_ao_atualizar_sub_receita(self):
+        sub_a = self.cadastrar(nome="Sub A", tipo="SUB_RECEITA")
+        sub_b = self.cadastrar(
+            nome="Sub B",
+            tipo="SUB_RECEITA",
+            itens=[{"sub_receita_id": sub_a, "quantidade_usada": 1}],
+        )
+        with self.assertRaisesRegex(ValueError, "ciclo"):
+            banco.atualizar_receita(
+                receita_id=sub_a,
+                nome="Sub A",
+                tipo="SUB_RECEITA",
+                rendimento_unidades=10,
+                custo_embalagem_centavos=0,
+                margem_lucro_pct=0,
+                taxa_cartao_pct=0,
+                lista_itens=[{"sub_receita_id": sub_b, "quantidade_usada": 1}],
+            )
+
+        dados = banco.obter_receita(sub_a)
+        self.assertEqual(len(dados["itens"]), 1)
+        self.assertEqual(dados["itens"][0]["ingrediente_id"], self.ingrediente_id)
+
+    def test_edicao_invalida_nao_apaga_itens_existentes(self):
+        receita_id = self.cadastrar()
+        with self.assertRaises(ValueError):
+            banco.atualizar_receita(
+                receita_id=receita_id,
+                nome="Receita alterada",
+                tipo="PRODUTO",
+                rendimento_unidades=10,
+                custo_embalagem_centavos=0,
+                margem_lucro_pct=0,
+                taxa_cartao_pct=0,
+                lista_itens=[self.item_ingrediente(0)],
+            )
+        dados = banco.obter_receita(receita_id)
+        self.assertEqual(len(dados["itens"]), 1)
+        self.assertEqual(dados["receita"]["nome"], "Receita teste")
+
+    def test_edicao_rejeita_receita_inexistente(self):
+        with self.assertRaisesRegex(ValueError, "não encontrada"):
+            banco.atualizar_receita(
+                receita_id=9999,
+                nome="Não existe",
+                tipo="PRODUTO",
+                rendimento_unidades=1,
+                custo_embalagem_centavos=0,
+                margem_lucro_pct=0,
+                taxa_cartao_pct=0,
+                lista_itens=[self.item_ingrediente()],
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
