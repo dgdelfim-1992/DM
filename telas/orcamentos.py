@@ -271,19 +271,35 @@ def criar_abrir_orcamentos(dependencias):
             for versao in versoes:
                 dados_anteriores = json.loads(versao["snapshot_json"])
                 data_versao = versao["registrado_em"].replace("T", " ")
+                evento_status = dados_anteriores.get("_evento") == "alteracao_status"
+                if evento_status:
+                    descricao_alteracao = (
+                        f'Status alterado: {dados_anteriores.get("_status_anterior", "Não informado")} '
+                        f'→ {dados_anteriores.get("_status_novo", "Não informado")}'
+                    )
+                else:
+                    descricao_alteracao = f'Status: {dados_anteriores.get("status", "Não informado")}'
                 controles.append(
                     ft.Container(
                         bgcolor=ROSA_CLARO, padding=10, border_radius=10,
-                        content=ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            controls=[
-                                ft.Column(expand=True, spacing=2, controls=[
-                                    ft.Text(data_versao, size=11, color=MARROM),
-                                    ft.Text(f'Total Pix: {formatar_reais(dados_anteriores["total_final_centavos"] / 100)}', size=12, weight=ft.FontWeight.BOLD, color=MARROM),
-                                ]),
-                                ft.TextButton("Ver versão", on_click=lambda ev, msg=dados_anteriores["mensagem"], num=versao["numero"]: visualizar_versao(msg, num)),
-                            ]
-                        )
+                        content=ft.Column(spacing=6, controls=[
+                            ft.Text(data_versao, size=11, color=MARROM),
+                            ft.Text(
+                                descricao_alteracao,
+                                size=12,
+                                weight=ft.FontWeight.BOLD,
+                                color="#285A83" if evento_status else MARROM,
+                            ),
+                            ft.Text(
+                                f'Total Pix: {formatar_reais(dados_anteriores["total_final_centavos"] / 100)}',
+                                size=12,
+                                color=MARROM,
+                            ),
+                            ft.TextButton(
+                                "Ver versão",
+                                on_click=lambda ev, msg=dados_anteriores["mensagem"], num=versao["numero"]: visualizar_versao(msg, num),
+                            ),
+                        ])
                     )
                 )
             if not controles:
