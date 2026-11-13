@@ -319,5 +319,141 @@ class TestBancoReceitas(unittest.TestCase):
             )
 
 
+
+class TestBancoCustosFixosEMaoDeObra(unittest.TestCase):
+    def setUp(self):
+        self.pasta_temporaria = tempfile.TemporaryDirectory()
+        self.caminho_banco = Path(self.pasta_temporaria.name) / "teste_custos.db"
+        self.patch_banco = patch.object(banco, "CAMINHO_BANCO", self.caminho_banco)
+        self.patch_banco.start()
+        banco.criar_tabelas()
+
+        ingrediente_id = banco.cadastrar_ingrediente(
+            nome="Farinha para custo",
+            marca="Marca",
+            fornecedor="Fornecedor",
+            quantidade_compra=1000,
+            unidade_compra="g",
+            preco_pago_centavos=500,
+        )
+        self.receita_id = banco.cadastrar_receita(
+            nome="Receita para rateio",
+            tipo="PRODUTO",
+            rendimento_unidades=10,
+            custo_embalagem_centavos=0,
+            margem_lucro_pct=0,
+            taxa_cartao_pct=0,
+            lista_itens=[{
+                "ingrediente_id": ingrediente_id,
+                "quantidade_usada": 100,
+            }],
+            tempo_preparo_min=60,
+            tempo_batedeira_min=30,
+            tempo_forno_min=60,
+            unidade_rendimento="un",
+        )
+
+    def tearDown(self):
+        self.patch_banco.stop()
+        self.pasta_temporaria.cleanup()
+
+    def test_cadastra_lista_atualiza_e_exclui_custo_fixo(self):
+        custo_id = banco.cadastrar_custo_fixo("Energia", 25000)
+        custos = banco.listar_custos_fixos()
+        self.assertEqual(len(custos), 1)
+        self.assertEqual(custos[0]["descricao"], "Energia")
+        self.assertEqual(custos[0]["valor_centavos"], 25000)
+
+        banco.atualizar_custo_fixo(custo_id, "Energia elétrica", 30000)
+        atualizado = banco.listar_custos_fixos()[0]
+        self.assertEqual(atualizado["descricao"], "Energia elétrica")
+        self.assertEqual(atualizado["valor_centavos"], 30000)
+
+        banco.excluir_custo_fixo(custo_id)
+        self.assertEqual(banco.listar_custos_fixos(), [])
+
+    def test_rejeita_cadastro_e_atualizacao_de_custo_invalido(self):
+        casos = [
+            ("", 100),
+            ("   ", 100),
+            ("Energia", -1),
+            ("Energia", float("nan")),
+            ("Energia", float("inf")),
+            ("Energia", None),
+            ("Energia", "abc"),
+            ("Energia", 10.5),
+        ]
+        for descricao, valor in casos:
+            with self.subTest(descricao=descricao, valor=valor):
+                with self.assertRaises(ValueError):
+                    banco.cadastrar_custo_fixo(descricao, valor)
+
+        custo_id = banco.cadastrar_custo_fixo("Água", 15000)
+        with self.assertRaises(ValueError):
+            banco.atualizar_custo_fixo(custo_id, "Água", -100)
+        custo = banco.listar_custos_fixos()[0]
+        self.assertEqual(custo["descricao"], "Água")
+        self.assertEqual(custo["valor_centavos"], 15000)
+
+    def test_atualizacao_e_exclusao_rejeitam_custo_inexistente(self):
+        with self.assertRaisesRegex(ValueError, "não encontrado"):
+            banco.atualizar_custo_fixo(9999, "Inexistente", 100)
+        with self.assertRaisesRegex(ValueError, "não encontrado"):
+            banco.excluir_custo_fixo(9999)
+
+    def test_calcula_valor_hora_mao_de_obra_e_rateio_fixo(self):
+        banco.salvar_horas_produtivas_mensais(220)
+        banco.salvar_remuneracao_mensal_desejada(4400)
+        banco.cadastrar_custo_fixo("Despesas mensais", 220000)
+
+        self.assertAlmostEqual(banco.obter_valor_hora_mao_obra(), 20.0)
+        self.assertAlmostEqual(banco.obter_custo_fixo_por_hora(), 10.0)
+
+        # Mão de obra: preparo + batedeira (90 min); forno não entra.
+        custo_mao_obra = banco.calcular_custo_mao_obra_proporcional(
+            self.receita_id
+        )
+        self.assertAlmostEqual(custo_mao_obra, 30.0)
+
+        # Rateio fixo: preparo + batedeira + forno (150 min).
+        custo_fixo = banco.calcular_custo_fixo_proporcional(self.receita_id)
+        self.assertAlmostEqual(custo_fixo, 25.0)
+
+    def test_calculos_respeitam_proporcao_da_quantidade_vendida(self):
+        banco.salvar_horas_produtivas_mensais(220)
+        banco.salvar_remuneracao_mensal_desejada(4400)
+        banco.cadastrar_custo_fixo("Despesas mensais", 220000)
+
+        self.assertAlmostEqual(
+            banco.calcular_custo_mao_obra_proporcional(self.receita_id, 0.5),
+            15.0,
+        )
+        self.assertAlmostEqual(
+            banco.calcular_custo_fixo_proporcional(self.receita_id, 0.5),
+            12.5,
+        )
+
+    def test_configuracoes_rejeitam_valores_nao_finitos(self):
+        for valor in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(configuracao="horas", valor=valor):
+                with self.assertRaises(ValueError):
+                    banco.salvar_horas_produtivas_mensais(valor)
+            with self.subTest(configuracao="remuneracao", valor=valor):
+                with self.assertRaises(ValueError):
+                    banco.salvar_remuneracao_mensal_desejada(valor)
+            with self.subTest(configuracao="impostos", valor=valor):
+                with self.assertRaises(ValueError):
+                    banco.salvar_impostos_pct(valor)
+            with self.subTest(configuracao="markup", valor=valor):
+                with self.assertRaises(ValueError):
+                    banco.salvar_markup_ideal(valor)
+            with self.subTest(configuracao="margem", valor=valor):
+                with self.assertRaises(ValueError):
+                    banco.salvar_margem_minima(valor)
+
+        with self.assertRaises(ValueError):
+            banco.salvar_taxas_pagamento({"pix": float("nan")})
+
+
 if __name__ == "__main__":
     unittest.main()
