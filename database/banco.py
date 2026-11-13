@@ -1580,6 +1580,9 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     
     # Preço sugerido cobre o markup e os percentuais incidentes sobre a venda.
     impostos_pct = obter_impostos_pct()
+    percentual_total_venda = float(taxa_cartao_pct) + impostos_pct
+    if percentual_total_venda < 0 or percentual_total_venda >= 100:
+        raise ValueError("A soma de impostos e taxas deve ser inferior a 100%.")
     preco_sugerido = calcular_preco_sugerido(
         custo_total, markup_ideal_pct, impostos_pct, taxa_cartao_pct
     )
