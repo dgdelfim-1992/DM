@@ -1644,6 +1644,7 @@ def main(page: ft.Page):
         "TEXTO_SECUNDARIO": TEXTO_SECUNDARIO,
         "indice_atual": indice_atual,
         "navegacao_ref": navegacao_ref,
+        "voltar_inicio": voltar_inicio,
         "listar_ingredientes": listar_ingredientes,
         "listar_alertas_aumento_ingredientes": listar_alertas_aumento_ingredientes,
         "excluir_ingrediente": excluir_ingrediente,
