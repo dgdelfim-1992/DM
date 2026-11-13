@@ -433,6 +433,24 @@ class TestBancoCustosFixosEMaoDeObra(unittest.TestCase):
             12.5,
         )
 
+    def test_salva_preco_abaixo_da_margem_com_status_de_alerta(self):
+        precificacao_id = banco.salvar_precificacao_v2(
+            None,
+            self.receita_id,
+            1,
+            0,
+            100,
+            1,
+            margem_minima_pct=30,
+            taxa_cartao_pct=5,
+        )
+
+        self.assertGreater(precificacao_id, 0)
+        historico = banco.listar_historico_precificacao_v2(precificacao_id)
+        self.assertEqual(len(historico), 1)
+        self.assertEqual(historico[0]["status"], "Abaixo da Margem Mínima")
+        self.assertEqual(historico[0]["preco_praticado_centavos"], 1)
+
     def test_configuracoes_rejeitam_valores_nao_finitos(self):
         for valor in (float("nan"), float("inf"), float("-inf")):
             with self.subTest(configuracao="horas", valor=valor):
