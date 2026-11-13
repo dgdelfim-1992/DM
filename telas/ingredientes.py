@@ -12,6 +12,7 @@ def criar_abrir_ingredientes(dependencias):
     TEXTO_SECUNDARIO = dependencias["TEXTO_SECUNDARIO"]
     indice_atual = dependencias["indice_atual"]
     navegacao_ref = dependencias["navegacao_ref"]
+    voltar_inicio = dependencias["voltar_inicio"]
     listar_ingredientes = dependencias["listar_ingredientes"]
     listar_alertas_aumento_ingredientes = dependencias["listar_alertas_aumento_ingredientes"]
     excluir_ingrediente = dependencias["excluir_ingrediente"]
