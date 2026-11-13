@@ -1670,6 +1670,7 @@ def main(page: ft.Page):
         "TEXTO_SECUNDARIO": TEXTO_SECUNDARIO,
         "indice_atual": indice_atual,
         "navegacao_ref": navegacao_ref,
+        "voltar_inicio": voltar_inicio,
         "filtro_receita": filtro_receita,
         "obter_conexao": obter_conexao,
         "excluir_receita": excluir_receita,
