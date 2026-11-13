@@ -20,6 +20,24 @@ class TestPrecificacaoService(unittest.TestCase):
         with self.assertRaises(ValueError):
             calcular_preco_sugerido(10, 50, 20, 80)
 
+    def test_rejeita_custos_e_markup_negativos(self):
+        casos = [
+            (-1, 100, 0, 0),
+            (10, -1, 0, 0),
+            (10, 100, -1, 0),
+            (10, 100, 0, -1),
+        ]
+        for argumentos in casos:
+            with self.subTest(argumentos=argumentos):
+                with self.assertRaises(ValueError):
+                    calcular_preco_sugerido(*argumentos)
+
+    def test_rejeita_valores_nao_finitos(self):
+        for valor in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(valor=valor):
+                with self.assertRaises(ValueError):
+                    calcular_preco_sugerido(valor, 100)
+
     def test_calcula_indicadores_do_preco_praticado(self):
         resultado = calcular_indicadores_preco_praticado(
             preco_praticado=20,
@@ -45,6 +63,23 @@ class TestPrecificacaoService(unittest.TestCase):
         )
         self.assertEqual(resultado["markup_aplicado_pct"], 0)
         self.assertEqual(resultado["margem_real_pct"], 0)
+
+    def test_indicadores_rejeitam_valores_negativos(self):
+        casos = [
+            (-1, 10, 5, 0, 0),
+            (10, -1, 5, 0, 0),
+            (10, 10, -1, 0, 0),
+            (10, 10, 5, -1, 0),
+            (10, 10, 5, 0, -1),
+        ]
+        for argumentos in casos:
+            with self.subTest(argumentos=argumentos):
+                with self.assertRaises(ValueError):
+                    calcular_indicadores_preco_praticado(*argumentos)
+
+    def test_indicadores_rejeitam_percentuais_que_anulam_divisor(self):
+        with self.assertRaises(ValueError):
+            calcular_indicadores_preco_praticado(20, 10, 5, 60, 40)
 
 
 if __name__ == "__main__":
