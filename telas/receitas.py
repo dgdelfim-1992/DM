@@ -11,7 +11,7 @@ def criar_abrir_receitas(dependencias):
     ROSA_CLARO = dependencias["ROSA_CLARO"]
     TEXTO_SECUNDARIO = dependencias["TEXTO_SECUNDARIO"]
     indice_atual = dependencias["indice_atual"]
-    navegacao = dependencias["navegacao"]
+    navegacao_ref = dependencias["navegacao_ref"]
     filtro_receita = dependencias["filtro_receita"]
     obter_conexao = dependencias["obter_conexao"]
     excluir_receita = dependencias["excluir_receita"]
@@ -432,7 +432,7 @@ def criar_abrir_receitas(dependencias):
         )
     
         indice_atual["valor"] = 2
-        navegacao.selected_index = 2
+        navegacao_ref["controle"].selected_index = 2
         page.controls.clear()
         page.add(tela)
         page.update()
