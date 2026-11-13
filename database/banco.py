@@ -3,6 +3,11 @@ import json
 from pathlib import Path
 from datetime import datetime, date, timedelta
 
+from servicos.precificacao_service import (
+    calcular_preco_sugerido,
+    calcular_indicadores_preco_praticado,
+)
+
 PASTA_PROJETO = Path(__file__).resolve().parent.parent
 CAMINHO_BANCO = PASTA_PROJETO / "database" / "dm_gulositos.db"
 
@@ -879,14 +884,12 @@ def calcular_precificacao_produto(receita_id):
     custo_total = custo_insumos + custo_embalagem + custo_fixo + custo_mao_obra
     custo_unitario = custo_total / rendimento
 
-    margem = precificacao["margem_lucro_pct"] / 100
-    taxa = precificacao["taxa_cartao_pct"] / 100
-    impostos = obter_impostos_pct() / 100
-    preco_com_margem = custo_unitario * (1 + margem)
-    divisor = 1 - taxa - impostos
-    if divisor <= 0:
-        raise ValueError("A soma dos impostos e da taxa do cartão precisa ser menor que 100%.")
-    preco_venda = preco_com_margem / divisor
+    margem_pct = float(precificacao["margem_lucro_pct"])
+    taxa_pct = float(precificacao["taxa_cartao_pct"])
+    impostos_pct = obter_impostos_pct()
+    preco_venda = calcular_preco_sugerido(
+        custo_unitario, margem_pct, impostos_pct, taxa_pct
+    )
 
     return {
         "custo_insumos": custo_insumos, "custo_embalagem": custo_embalagem, "custo_fixo": custo_fixo,
@@ -1065,10 +1068,9 @@ def calcular_precificacao_completa(receita_id, quantidade_venda, embalagem_id=No
     impostos_pct = obter_impostos_pct()
     taxas = obter_taxas_pagamento()
     taxa_referencia = max([float(v) for v in taxas.values()] or [0.0])
-    divisor_preco = 1 - ((impostos_pct + taxa_referencia) / 100.0)
-    if divisor_preco <= 0:
-        raise ValueError("A soma dos impostos e taxas deve ser inferior a 100%.")
-    preco_sugerido = custo_total * (1 + markup) / divisor_preco
+    preco_sugerido = calcular_preco_sugerido(
+        custo_total, markup * 100.0, impostos_pct, taxa_referencia
+    )
 
     return {
         "nome": receita["nome"], "rendimento": rendimento, "unidade_rendimento": receita["unidade_rendimento"],
@@ -1578,28 +1580,30 @@ def calcular_simulacao_precificacao(receita_id, quantidade_embalagem, custo_emba
     
     # Preço sugerido cobre o markup e os percentuais incidentes sobre a venda.
     impostos_pct = obter_impostos_pct()
-    percentual_total_venda = float(taxa_cartao_pct) + impostos_pct
-    if percentual_total_venda < 0 or percentual_total_venda >= 100:
-        raise ValueError("A soma de impostos e taxas deve ser inferior a 100%.")
-    divisor_preco = 1 - (percentual_total_venda / 100.0)
-    preco_sugerido = custo_total * (1 + (markup_ideal_pct / 100.0)) / divisor_preco
+    preco_sugerido = calcular_preco_sugerido(
+        custo_total, markup_ideal_pct, impostos_pct, taxa_cartao_pct
+    )
     
     # 6. Analise do Preço Praticado
     preco_praticado = preco_praticado_centavos / 100.0
     
-    # Markup Aplicado = (Preço Praticado - Custo Total) / Custo Total
-    markup_aplicado_pct = ((preco_praticado - custo_total) / custo_total * 100.0) if custo_total > 0 else 0
-    
-    # Margem de contribuição deduz custos variáveis, mas não o rateio fixo.
-    imposto_cartao = preco_praticado * (taxa_cartao_pct / 100.0)
-    imposto_venda = preco_praticado * (impostos_pct / 100.0)
     custos_variaveis = custo_insumo + custo_mao_obra + custo_embalagem
-    margem_contribuicao = preco_praticado - custos_variaveis - imposto_cartao - imposto_venda
-    resultado_apos_rateio = preco_praticado - custo_total - imposto_cartao - imposto_venda
-    
+    indicadores = calcular_indicadores_preco_praticado(
+        preco_praticado,
+        custo_total,
+        custos_variaveis,
+        impostos_pct,
+        taxa_cartao_pct,
+    )
+    markup_aplicado_pct = indicadores["markup_aplicado_pct"]
+    imposto_cartao = indicadores["imposto_cartao"]
+    imposto_venda = indicadores["imposto_venda"]
+    margem_contribuicao = indicadores["margem_contribuicao"]
+    resultado_apos_rateio = indicadores["resultado_apos_rateio"]
+
     if margem_minima_pct is None:
         margem_minima_pct = obter_margem_minima()
-    margem_real_pct = (margem_contribuicao / preco_praticado * 100.0) if preco_praticado > 0 else 0.0
+    margem_real_pct = indicadores["margem_real_pct"]
     status = "Dentro da Margem" if margem_real_pct >= margem_minima_pct else "Abaixo da Margem Mínima"
     
     return {
