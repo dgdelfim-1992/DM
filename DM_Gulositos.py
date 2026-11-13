@@ -1295,7 +1295,7 @@ def main(page: ft.Page):
                     markup_ideal,
                     preco_prat,
                     margem_minima,
-                    taxas_pagamento["credito_avista"],
+                    max([float(v) for v in taxas_pagamento.values()] or [0.0]),
                     embalagem_id,
                     qtd_embalagem_insumo,
                     sacola_id,
