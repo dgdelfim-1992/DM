@@ -947,36 +947,61 @@ def obter_receita(receita_id):
         conexao.close()
 
 def atualizar_receita(receita_id, nome, tipo, rendimento_unidades, custo_embalagem_centavos, margem_lucro_pct, taxa_cartao_pct, lista_itens, tempo_preparo_min=0, tempo_batedeira_min=0, tempo_forno_min=0, unidade_rendimento="un"):
-    nome = (nome or "").strip()
-    unidade_rendimento = (unidade_rendimento or "un").strip().lower()
-
-    if not nome: raise ValueError("Informe o nome da receita.")
-    if rendimento_unidades <= 0: raise ValueError("O rendimento precisa ser maior que zero.")
-    if unidade_rendimento not in ("un", "g"): raise ValueError("A unidade de rendimento deve ser un ou g.")
-    tempos = [tempo_preparo_min, tempo_batedeira_min, tempo_forno_min]
-    if any(tempo < 0 for tempo in tempos): raise ValueError("Os tempos não podem ser negativos.")
-
-    agora_iso = datetime.now().isoformat(timespec="seconds")
     conexao = obter_conexao()
-
     try:
-        conexao.execute("""
+        receita_atual = conexao.execute(
+            "SELECT id FROM receitas WHERE id = ? AND ativo = 1",
+            (receita_id,),
+        ).fetchone()
+        if not receita_atual:
+            raise ValueError("Receita não encontrada ou inativa.")
+
+        dados = _validar_dados_receita(
+            conexao,
+            nome,
+            tipo,
+            rendimento_unidades,
+            custo_embalagem_centavos,
+            margem_lucro_pct,
+            taxa_cartao_pct,
+            lista_itens,
+            tempo_preparo_min,
+            tempo_batedeira_min,
+            tempo_forno_min,
+            unidade_rendimento,
+            receita_id=receita_id,
+        )
+        agora_iso = datetime.now().isoformat(timespec="seconds")
+        conexao.execute(
+            """
             UPDATE receitas SET
                 nome = ?, tipo = ?, rendimento_unidades = ?, custo_embalagem_centavos = ?, margem_lucro_pct = ?,
                 taxa_cartao_pct = ?, atualizado_em = ?, tempo_preparo_min = ?, tempo_batedeira_min = ?,
                 tempo_forno_min = ?, unidade_rendimento = ?
             WHERE id = ?
-        """, (
-            nome, tipo, rendimento_unidades, custo_embalagem_centavos, margem_lucro_pct, taxa_cartao_pct,
-            agora_iso, tempo_preparo_min, tempo_batedeira_min, tempo_forno_min, unidade_rendimento, receita_id
-        ))
+            """,
+            (
+                dados["nome"], dados["tipo"], dados["rendimento_unidades"],
+                dados["custo_embalagem_centavos"], dados["margem_lucro_pct"],
+                dados["taxa_cartao_pct"], agora_iso, dados["tempo_preparo_min"],
+                dados["tempo_batedeira_min"], dados["tempo_forno_min"],
+                dados["unidade_rendimento"], receita_id,
+            ),
+        )
 
         conexao.execute("DELETE FROM receita_itens WHERE receita_pai_id = ?", (receita_id,))
-        for item in lista_itens:
-            conexao.execute("""
-                INSERT INTO receita_itens (receita_pai_id, ingrediente_id, sub_receita_id, quantidade_usada)
-                VALUES (?, ?, ?, ?)
-            """, (receita_id, item.get("ingrediente_id"), item.get("sub_receita_id"), item["quantidade_usada"]))
+        for item in dados["lista_itens"]:
+            conexao.execute(
+                """
+                INSERT INTO receita_itens (
+                    receita_pai_id, ingrediente_id, sub_receita_id, quantidade_usada
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (
+                    receita_id, item["ingrediente_id"],
+                    item["sub_receita_id"], item["quantidade_usada"],
+                ),
+            )
 
         conexao.commit()
         return True
