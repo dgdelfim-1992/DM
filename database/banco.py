@@ -1574,12 +1574,8 @@ def salvar_precificacao_v2(
 
         if not resultado:
             raise ValueError("Não foi possível calcular a precificação.")
-        if resultado["status"] != "Dentro da Margem":
-            raise ValueError(
-                f"Preço não salvo: a margem real é {resultado['margem_real_pct']:.2f}%, "
-                f"abaixo do mínimo de {margem_minima_pct:.2f}%."
-            )
-
+        # Preços abaixo da margem mínima também são registrados para permitir
+        # acompanhar o preço realmente praticado. O status fica no histórico.
         conexao.execute(
             """INSERT INTO configuracoes (chave, valor)
                VALUES ('margem_minima_pct', ?)
