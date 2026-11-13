@@ -13,7 +13,7 @@ def calcular_preco_sugerido(custo_total, markup_pct, impostos_pct=0, taxa_pct=0)
     taxa_pct = float(taxa_pct)
 
     percentual_total = impostos_pct + taxa_pct
-    if percentual_total < 0 or percentual_total >= 100:
+    if percentual_total >= 100:
         raise ValueError("A soma de impostos e taxas deve ser inferior a 100%.")
 
     divisor = 1 - (percentual_total / 100.0)
