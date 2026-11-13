@@ -3,20 +3,52 @@
 Este módulo não acessa SQLite nem depende da interface Flet.
 Os valores monetários são recebidos em reais e os percentuais em pontos percentuais.
 """
+import math
+
+
+def _converter_validar_valores(**valores):
+    """Converte entradas numéricas e rejeita valores inválidos ou não finitos."""
+    convertidos = {}
+    for nome, valor in valores.items():
+        try:
+            numero = float(valor)
+        except (TypeError, ValueError) as erro:
+            raise ValueError(f"O valor de {nome} deve ser numérico.") from erro
+        if not math.isfinite(numero):
+            raise ValueError(f"O valor de {nome} deve ser finito.")
+        convertidos[nome] = numero
+    return convertidos
+
+
+def _validar_percentuais(impostos_pct, taxa_pct):
+    if impostos_pct < 0 or taxa_pct < 0:
+        raise ValueError("Impostos e taxas não podem ser negativos.")
+    if impostos_pct >= 100 or taxa_pct >= 100:
+        raise ValueError("Cada percentual deve ser inferior a 100%.")
+    if impostos_pct + taxa_pct >= 100:
+        raise ValueError("A soma de impostos e taxas deve ser inferior a 100%.")
 
 
 def calcular_preco_sugerido(custo_total, markup_pct, impostos_pct=0, taxa_pct=0):
     """Calcula o preço necessário para cobrir custos, markup e percentuais da venda."""
-    custo_total = float(custo_total)
-    markup_pct = float(markup_pct)
-    impostos_pct = float(impostos_pct)
-    taxa_pct = float(taxa_pct)
+    valores = _converter_validar_valores(
+        custo_total=custo_total,
+        markup_pct=markup_pct,
+        impostos_pct=impostos_pct,
+        taxa_pct=taxa_pct,
+    )
+    custo_total = valores["custo_total"]
+    markup_pct = valores["markup_pct"]
+    impostos_pct = valores["impostos_pct"]
+    taxa_pct = valores["taxa_pct"]
 
-    percentual_total = impostos_pct + taxa_pct
-    if percentual_total >= 100:
-        raise ValueError("A soma de impostos e taxas deve ser inferior a 100%.")
+    if custo_total < 0:
+        raise ValueError("O custo total não pode ser negativo.")
+    if markup_pct < 0:
+        raise ValueError("O markup não pode ser negativo.")
+    _validar_percentuais(impostos_pct, taxa_pct)
 
-    divisor = 1 - (percentual_total / 100.0)
+    divisor = 1 - ((impostos_pct + taxa_pct) / 100.0)
     return custo_total * (1 + (markup_pct / 100.0)) / divisor
 
 
@@ -28,11 +60,24 @@ def calcular_indicadores_preco_praticado(
     taxa_pct,
 ):
     """Calcula markup aplicado, margem de contribuição e resultado após rateio."""
-    preco_praticado = float(preco_praticado)
-    custo_total = float(custo_total)
-    custo_variavel = float(custo_variavel)
-    impostos_pct = float(impostos_pct)
-    taxa_pct = float(taxa_pct)
+    valores = _converter_validar_valores(
+        preco_praticado=preco_praticado,
+        custo_total=custo_total,
+        custo_variavel=custo_variavel,
+        impostos_pct=impostos_pct,
+        taxa_pct=taxa_pct,
+    )
+    preco_praticado = valores["preco_praticado"]
+    custo_total = valores["custo_total"]
+    custo_variavel = valores["custo_variavel"]
+    impostos_pct = valores["impostos_pct"]
+    taxa_pct = valores["taxa_pct"]
+
+    if preco_praticado < 0:
+        raise ValueError("O preço praticado não pode ser negativo.")
+    if custo_total < 0 or custo_variavel < 0:
+        raise ValueError("Os custos não podem ser negativos.")
+    _validar_percentuais(impostos_pct, taxa_pct)
 
     markup_aplicado_pct = (
         (preco_praticado - custo_total) / custo_total * 100.0
