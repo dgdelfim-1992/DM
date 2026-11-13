@@ -603,7 +603,7 @@ def criar_abrir_orcamentos(dependencias):
                 dados = {
                     "numero": numero_orcamento,
                     "cliente": cliente.value.strip(),
-                    "status": "Em elaboração",
+                    "status": registro_edicao["status"] if registro_edicao else "Em elaboração",
                     "validade": validade.value.strip(),
                     "data_entrega": obter_data_entrega_iso(),
                     "desconto_tipo": dd_tipo_desconto.value,
