@@ -1981,8 +1981,73 @@ def criar_tabelas_orcamentos():
         conexao.close()
 
 
+def _validar_dados_orcamento(dados):
+    """Valida os dados do orçamento antes de iniciar qualquer gravação."""
+    if not isinstance(dados, dict):
+        raise ValueError("Os dados do orçamento são inválidos.")
+
+    numero = str(dados.get("numero", "")).strip()
+    if not numero:
+        raise ValueError("O número do orçamento é obrigatório.")
+
+    tipo_desconto = dados.get("desconto_tipo", "nenhum")
+    if tipo_desconto not in {"nenhum", "percentual", "valor"}:
+        raise ValueError("Tipo de desconto inválido.")
+
+    try:
+        desconto = float(dados.get("desconto_valor", 0))
+        total_referencia = int(dados["total_referencia_centavos"])
+        total_final = int(dados["total_final_centavos"])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        raise ValueError("Valores financeiros do orçamento inválidos.")
+
+    if not math.isfinite(desconto) or desconto < 0:
+        raise ValueError("O desconto deve ser um valor finito e não negativo.")
+    if tipo_desconto == "percentual" and desconto >= 100:
+        raise ValueError("O desconto percentual deve ser menor que 100%.")
+    if total_referencia < 0 or total_final < 0:
+        raise ValueError("Os totais do orçamento não podem ser negativos.")
+    if tipo_desconto == "valor" and desconto * 100 > total_referencia:
+        raise ValueError("O desconto não pode superar o valor dos produtos.")
+
+    itens = dados.get("itens")
+    if not isinstance(itens, (list, tuple)) or not itens:
+        raise ValueError("O orçamento deve possuir pelo menos um produto.")
+
+    for indice, item in enumerate(itens, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Produto {indice}: dados inválidos.")
+        if not str(item.get("nome", "")).strip():
+            raise ValueError(f"Produto {indice}: nome obrigatório.")
+        if not str(item.get("unidade", "")).strip():
+            raise ValueError(f"Produto {indice}: unidade obrigatória.")
+        try:
+            quantidade = float(item["quantidade"])
+            valores_centavos = [
+                int(item[chave]) for chave in (
+                    "custo_unitario_centavos",
+                    "preco_base_centavos",
+                    "preco_final_unitario_centavos",
+                    "subtotal_centavos",
+                )
+            ]
+        except (KeyError, TypeError, ValueError, OverflowError):
+            raise ValueError(f"Produto {indice}: quantidade ou valores inválidos.")
+        if not math.isfinite(quantidade) or quantidade <= 0:
+            raise ValueError(f"Produto {indice}: quantidade deve ser finita e maior que zero.")
+        if any(valor < 0 for valor in valores_centavos):
+            raise ValueError(f"Produto {indice}: valores não podem ser negativos.")
+        if not isinstance(item.get("snapshot_json"), str):
+            raise ValueError(f"Produto {indice}: fotografia dos dados inválida.")
+
+    for chave in ("itens_json", "resumo_json", "mensagem"):
+        if not isinstance(dados.get(chave), str):
+            raise ValueError(f"Campo obrigatório inválido: {chave}.")
+
+
 def salvar_orcamento(dados):
     """Salva o orçamento e seus itens como fotografia dos valores da data."""
+    _validar_dados_orcamento(dados)
     agora = datetime.now().isoformat(timespec="seconds")
     conexao = obter_conexao()
     try:
@@ -2027,6 +2092,7 @@ def salvar_orcamento(dados):
 
 def atualizar_orcamento(orcamento_id, dados):
     """Atualiza orçamento e itens em uma única transação."""
+    _validar_dados_orcamento(dados)
     agora = datetime.now().isoformat(timespec="seconds")
     conexao = obter_conexao()
     try:
@@ -2156,12 +2222,36 @@ def atualizar_status_orcamento(orcamento_id, status):
         raise ValueError("Status de orçamento inválido.")
     conexao = obter_conexao()
     try:
-        conexao.execute("""
-            UPDATE orcamentos
-            SET status = ?, atualizado_em = ?
-            WHERE id = ?
-        """, (status, datetime.now().isoformat(timespec="seconds"), orcamento_id))
+        atual = conexao.execute(
+            "SELECT * FROM orcamentos WHERE id = ?", (orcamento_id,)
+        ).fetchone()
+        if not atual:
+            raise ValueError("Orçamento não encontrado para atualização de status.")
+
+        if atual["status"] != status:
+            agora = datetime.now().isoformat(timespec="seconds")
+            snapshot = dict(atual)
+            snapshot["_evento"] = "alteracao_status"
+            snapshot["_status_anterior"] = atual["status"]
+            snapshot["_status_novo"] = status
+            conexao.execute("""
+                INSERT INTO orcamento_historico (
+                    orcamento_id, numero, snapshot_json, registrado_em
+                ) VALUES (?, ?, ?, ?)
+            """, (
+                orcamento_id, atual["numero"],
+                json.dumps(snapshot, ensure_ascii=False), agora
+            ))
+            conexao.execute("""
+                UPDATE orcamentos
+                SET status = ?, atualizado_em = ?
+                WHERE id = ?
+            """, (status, agora, orcamento_id))
         conexao.commit()
+        return True
+    except Exception:
+        conexao.rollback()
+        raise
     finally:
         conexao.close()
 
