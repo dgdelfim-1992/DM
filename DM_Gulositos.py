@@ -397,6 +397,9 @@ def main(page: ft.Page):
     # ==================================================
     # AGENDA DE PRODUÇÃO
     # ==================================================
+    # Referência compartilhada: a barra é criada depois das fábricas de tela.
+    navegacao_ref = {"controle": None}
+
     abrir_agenda_producao = criar_abrir_agenda_producao({
         "ft": ft,
         "datetime": datetime,
@@ -413,7 +416,7 @@ def main(page: ft.Page):
         "page": page,
         "abrir_menu_opcoes": lambda ev=None: abrir_menu_opcoes(ev),
         "indice_atual": indice_atual,
-        "navegacao": navegacao,
+        "navegacao_ref": navegacao_ref,
     })
 
     def abrir_menu_opcoes(e=None):
@@ -877,7 +880,7 @@ def main(page: ft.Page):
         "criar_dropdown_padrao": criar_dropdown_padrao,
         "abrir_menu_opcoes": lambda ev=None: abrir_menu_opcoes(ev),
         "indice_atual": indice_atual,
-        "navegacao": navegacao,
+        "navegacao_ref": navegacao_ref,
         "atualizar_orcamento_salvo": atualizar_orcamento_salvo,
         "salvar_orcamento": salvar_orcamento,
     })
@@ -1640,7 +1643,7 @@ def main(page: ft.Page):
         "ROSA_CLARO": ROSA_CLARO,
         "TEXTO_SECUNDARIO": TEXTO_SECUNDARIO,
         "indice_atual": indice_atual,
-        "navegacao": navegacao,
+        "navegacao_ref": navegacao_ref,
         "listar_ingredientes": listar_ingredientes,
         "listar_alertas_aumento_ingredientes": listar_alertas_aumento_ingredientes,
         "excluir_ingrediente": excluir_ingrediente,
@@ -1666,7 +1669,7 @@ def main(page: ft.Page):
         "ROSA_CLARO": ROSA_CLARO,
         "TEXTO_SECUNDARIO": TEXTO_SECUNDARIO,
         "indice_atual": indice_atual,
-        "navegacao": navegacao,
+        "navegacao_ref": navegacao_ref,
         "filtro_receita": filtro_receita,
         "obter_conexao": obter_conexao,
         "excluir_receita": excluir_receita,
@@ -1691,7 +1694,7 @@ def main(page: ft.Page):
         "ROSA_CLARO": ROSA_CLARO,
         "TEXTO_SECUNDARIO": TEXTO_SECUNDARIO,
         "indice_atual": indice_atual,
-        "navegacao": navegacao,
+        "navegacao_ref": navegacao_ref,
         "obter_conexao": obter_conexao,
         "obter_remuneracao_mensal_desejada": obter_remuneracao_mensal_desejada,
         "obter_horas_produtivas_mensais": obter_horas_produtivas_mensais,
@@ -1721,7 +1724,7 @@ def main(page: ft.Page):
         "ROSA_CLARO": ROSA_CLARO,
         "TEXTO_SECUNDARIO": TEXTO_SECUNDARIO,
         "indice_atual": indice_atual,
-        "navegacao": navegacao,
+        "navegacao_ref": navegacao_ref,
         "obter_conexao": obter_conexao,
         "calcular_custo_receita": calcular_custo_receita,
         "calcular_precificacao_produto": calcular_precificacao_produto,
@@ -1765,6 +1768,8 @@ def main(page: ft.Page):
     # ==================================================
 
     conteudo = montar_painel_inicial()
+
+    navegacao_ref["controle"] = navegacao
 
     page.navigation_bar = navegacao
     page.add(conteudo)
