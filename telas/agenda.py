@@ -16,7 +16,7 @@ def criar_abrir_agenda_producao(dependencias):
     page = dependencias["page"]
     abrir_menu_opcoes = dependencias["abrir_menu_opcoes"]
     indice_atual = dependencias["indice_atual"]
-    navegacao = dependencias["navegacao"]
+    navegacao_ref = dependencias["navegacao_ref"]
 
     def abrir_agenda_producao(e=None):
         filtro = {"valor": "Todos"}
@@ -239,7 +239,7 @@ def criar_abrir_agenda_producao(dependencias):
             ],
         )
         indice_atual["valor"] = 2
-        navegacao.selected_index = 2
+        navegacao_ref["controle"].selected_index = 2
         page.controls.clear()
         page.add(tela)
         montar_agenda()
