@@ -28,7 +28,7 @@ def criar_abrir_orcamentos(dependencias):
     criar_dropdown_padrao = dependencias["criar_dropdown_padrao"]
     abrir_menu_opcoes = dependencias["abrir_menu_opcoes"]
     indice_atual = dependencias["indice_atual"]
-    navegacao = dependencias["navegacao"]
+    navegacao_ref = dependencias["navegacao_ref"]
     atualizar_orcamento_salvo = dependencias["atualizar_orcamento_salvo"]
     salvar_orcamento = dependencias["salvar_orcamento"]
 
@@ -643,7 +643,7 @@ def criar_abrir_orcamentos(dependencias):
             ])),
         ])
         indice_atual["valor"] = 2
-        navegacao.selected_index = 2
+        navegacao_ref["controle"].selected_index = 2
         page.controls.clear()
         if filtro_status is not None:
             montar_tela_historico(filtro_status)
