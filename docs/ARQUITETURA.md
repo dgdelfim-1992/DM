@@ -47,10 +47,13 @@ A versão analisada concentra a interface em `DM_Gulositos.py` e possui uma cama
 - [x] Extrair o menu para `telas/menu.py`.
 - [x] Extrair builders visuais compartilhados para `componentes/ui.py`.
 - [x] Extrair a agenda de produção para `telas/agenda.py`, recebendo Flet, estado, callbacks e funções de persistência por injeção de dependências.
-- [ ] Extrair orçamentos e histórico de versões.
+- [x] Extrair orçamentos e histórico de versões para `telas/orcamentos.py`, com dependências injetadas pelo app principal.
 - [ ] Extrair ingredientes e receitas.
 - [ ] Separar cálculos de precificação em serviços.
 - [ ] Extrair relatórios e painel inicial.
 - [ ] Criar/validar testes automatizados, execução web e build APK.
 
 A extração da agenda preserva os filtros por status e data, ordenação das entregas, destaque de atrasos/entregas do dia e atualização do status de produção. A validação funcional ainda depende da execução local do aplicativo.
+
+
+A tela de orçamentos foi extraída preservando criação e edição, seleção/exclusão em lote com dupla confirmação, filtros por status, histórico de versões, atualização de status, simulação por modalidade de pagamento e geração da mensagem para compartilhamento. O módulo recebe explicitamente os callbacks de persistência e os componentes compartilhados. A validação de sintaxe em ambiente Python/Flet e o teste funcional ainda precisam ser executados localmente.
