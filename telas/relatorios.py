@@ -14,6 +14,7 @@ def criar_telas_relatorios(dependencias):
     TEXTO_SECUNDARIO = dependencias["TEXTO_SECUNDARIO"]
     indice_atual = dependencias["indice_atual"]
     navegacao_ref = dependencias["navegacao_ref"]
+    voltar_inicio = dependencias["voltar_inicio"]
     obter_conexao = dependencias["obter_conexao"]
     calcular_custo_receita = dependencias["calcular_custo_receita"]
     calcular_precificacao_produto = dependencias["calcular_precificacao_produto"]
