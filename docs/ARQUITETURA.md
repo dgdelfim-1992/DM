@@ -38,3 +38,19 @@ Evoluir o aplicativo de forma incremental, separando interface, regras de negóc
 ## Situação inicial
 
 A versão analisada concentra a interface em `DM_Gulositos.py` e possui uma camada de persistência publicada em uma branch diferente. A camada de banco está sendo portada para `database/banco.py` sem mesclar o histórico divergente da branch `database`.
+
+
+## Situação da refatoração
+
+- [x] Criar branch isolada `refatoracao-modular`.
+- [x] Organizar a camada de banco em `database/banco.py`, sem mesclar o histórico divergente da branch `database`.
+- [x] Extrair o menu para `telas/menu.py`.
+- [x] Extrair builders visuais compartilhados para `componentes/ui.py`.
+- [x] Extrair a agenda de produção para `telas/agenda.py`, recebendo Flet, estado, callbacks e funções de persistência por injeção de dependências.
+- [ ] Extrair orçamentos e histórico de versões.
+- [ ] Extrair ingredientes e receitas.
+- [ ] Separar cálculos de precificação em serviços.
+- [ ] Extrair relatórios e painel inicial.
+- [ ] Criar/validar testes automatizados, execução web e build APK.
+
+A extração da agenda preserva os filtros por status e data, ordenação das entregas, destaque de atrasos/entregas do dia e atualização do status de produção. A validação funcional ainda depende da execução local do aplicativo.
