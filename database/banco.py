@@ -2109,7 +2109,7 @@ def atualizar_orcamento(orcamento_id, dados):
         ))
         conexao.execute("""
             UPDATE orcamentos
-            SET cliente=?, status='Em elaboração', validade=?, data_entrega=?, desconto_tipo=?, desconto_valor=?, modalidade=?,
+            SET cliente=?, validade=?, data_entrega=?, desconto_tipo=?, desconto_valor=?, modalidade=?,
                 total_referencia_centavos=?, total_final_centavos=?, itens_json=?,
                 resumo_json=?, mensagem=?, atualizado_em=?
             WHERE id=?
