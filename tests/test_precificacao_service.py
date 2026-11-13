@@ -548,6 +548,26 @@ class TestBancoOrcamentos(unittest.TestCase):
                     banco.salvar_orcamento(dados_invalidos)
         self.assertEqual(banco.listar_orcamentos(), [])
 
+    def test_edicao_preserva_status_atual_do_orcamento(self):
+        orcamento_id = banco.salvar_orcamento(self.dados_validos())
+        banco.atualizar_status_orcamento(orcamento_id, "Enviado")
+
+        dados_edicao = self.dados_validos()
+        dados_edicao["cliente"] = "Cliente atualizado"
+        # Mesmo que a tela envie um status padrão por engano, a edição
+        # não deve alterar o status controlado pelo fluxo de situação.
+        dados_edicao["status"] = "Em elaboração"
+        banco.atualizar_orcamento(orcamento_id, dados_edicao)
+
+        salvo = banco.obter_orcamento(orcamento_id)
+        self.assertEqual(salvo["cliente"], "Cliente atualizado")
+        self.assertEqual(salvo["status"], "Enviado")
+
+        versoes = banco.listar_versoes_orcamento(orcamento_id)
+        self.assertEqual(len(versoes), 2)
+        snapshot_edicao = json.loads(versoes[0]["snapshot_json"])
+        self.assertEqual(snapshot_edicao["status"], "Enviado")
+
     def test_edicao_invalida_preserva_orcamento_e_itens(self):
         orcamento_id = banco.salvar_orcamento(self.dados_validos())
         dados_invalidos = self.dados_validos()
