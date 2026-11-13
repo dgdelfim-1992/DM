@@ -11,7 +11,7 @@ def criar_abrir_ingredientes(dependencias):
     ROSA_CLARO = dependencias["ROSA_CLARO"]
     TEXTO_SECUNDARIO = dependencias["TEXTO_SECUNDARIO"]
     indice_atual = dependencias["indice_atual"]
-    navegacao = dependencias["navegacao"]
+    navegacao_ref = dependencias["navegacao_ref"]
     listar_ingredientes = dependencias["listar_ingredientes"]
     listar_alertas_aumento_ingredientes = dependencias["listar_alertas_aumento_ingredientes"]
     excluir_ingrediente = dependencias["excluir_ingrediente"]
@@ -397,7 +397,7 @@ def criar_abrir_ingredientes(dependencias):
         )
     
         indice_atual["valor"] = 2
-        navegacao.selected_index = 2
+        navegacao_ref["controle"].selected_index = 2
         page.controls.clear()
         page.add(tela)
         page.update()
@@ -763,7 +763,7 @@ def criar_abrir_ingredientes(dependencias):
         )
     
         indice_atual["valor"] = 2
-        navegacao.selected_index = 2
+        navegacao_ref["controle"].selected_index = 2
         page.controls.clear()
         page.add(tela)
         page.update()
