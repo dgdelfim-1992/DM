@@ -11,6 +11,7 @@ from servicos.precificacao_service import (
 from database.caminhos import (
     PASTA_PROJETO,
     CAMINHO_BANCO,
+    CAMINHO_BANCO as CAMINHO_BANCO_CONFIGURADO,
     CAMINHO_BANCO_LEGADO,
     migrar_banco_legado_se_necessario,
 )
@@ -21,7 +22,8 @@ from servicos.backup_service import criar_backup_automatico
 # CONEXÃO COM O BANCO
 # =========================================================
 def obter_conexao():
-    migrar_banco_legado_se_necessario()
+    if CAMINHO_BANCO == CAMINHO_BANCO_CONFIGURADO:
+        migrar_banco_legado_se_necessario()
     CAMINHO_BANCO.parent.mkdir(parents=True, exist_ok=True)
     conexao = sqlite3.connect(CAMINHO_BANCO)
     conexao.row_factory = sqlite3.Row
