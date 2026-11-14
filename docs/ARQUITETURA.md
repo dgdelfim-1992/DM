@@ -86,3 +86,10 @@ As rotinas de backup foram centralizadas em `servicos/backup_service.py`. O serv
 Na restauração, o arquivo selecionado é gravado em um temporário e validado antes de qualquer substituição. Quando já existe um banco ativo, o serviço finaliza as operações pendentes e cria uma cópia em `database/backups/` antes de substituir o arquivo. A interface solicita duas confirmações e orienta o usuário a reiniciar o aplicativo após a restauração.
 
 Os testes do serviço usam bancos SQLite temporários e não devem acessar o banco real da doceria.
+
+
+## Identidade e configuração de build
+
+O projeto utiliza `pyproject.toml` como configuração central do Flet. O nome exibido é **DM Gulositos**, a versão inicial desta configuração é **1.0.0** e o módulo de entrada é `DM_Gulositos.py`. O identificador interno do projeto permanece `dm`; não foi definido um novo `org` ou `bundle_id`, evitando alterar sem necessidade o identificador derivado pelo build anterior.
+
+Os recursos visuais do aplicativo ficam em `assets/icon.svg` e `assets/splash.svg`. A cor de fundo da abertura usa a paleta clara da aplicação. O build deve ser conferido no ambiente local antes de distribuir a versão.
