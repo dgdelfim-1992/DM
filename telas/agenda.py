@@ -15,6 +15,7 @@ def criar_abrir_agenda_producao(dependencias):
     TEXTO_SECUNDARIO = dependencias["TEXTO_SECUNDARIO"]
     page = dependencias["page"]
     abrir_menu_opcoes = dependencias["abrir_menu_opcoes"]
+    criar_cabecalho_padrao = dependencias["criar_cabecalho_padrao"]
     indice_atual = dependencias["indice_atual"]
     navegacao_ref = dependencias["navegacao_ref"]
 
@@ -225,12 +226,10 @@ def criar_abrir_agenda_producao(dependencias):
             scroll=ft.ScrollMode.AUTO,
             spacing=14,
             controls=[
-                ft.Container(
-                    padding=ft.Padding.only(left=15, right=18, top=18, bottom=6),
-                    content=ft.Row(controls=[
-                        ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=MARROM, on_click=abrir_menu_opcoes),
-                        ft.Text("Agenda de Produção", size=22, weight=ft.FontWeight.BOLD, color=MARROM),
-                    ]),
+                criar_cabecalho_padrao(
+                    "Agenda de Produção",
+                    "Organize os pedidos, prazos e entregas.",
+                    abrir_menu_opcoes,
                 ),
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=18),
