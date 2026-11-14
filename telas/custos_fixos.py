@@ -20,6 +20,7 @@ def criar_abrir_custos_fixos(dependencias):
     obter_markup_ideal = dependencias["obter_markup_ideal"]
     obter_margem_minima = dependencias["obter_margem_minima"]
     criar_campo_padrao = dependencias["criar_campo_padrao"]
+    criar_cabecalho_padrao = dependencias["criar_cabecalho_padrao"]
     salvar_remuneracao_mensal_desejada = dependencias["salvar_remuneracao_mensal_desejada"]
     salvar_horas_produtivas_mensais = dependencias["salvar_horas_produtivas_mensais"]
     salvar_impostos_pct = dependencias["salvar_impostos_pct"]
@@ -389,33 +390,10 @@ def criar_abrir_custos_fixos(dependencias):
             scroll=ft.ScrollMode.AUTO,
             spacing=16,
             controls=[
-                ft.Container(
-                    padding=ft.Padding.only(
-                        left=15,
-                        right=20,
-                        top=20,
-                        bottom=10,
-                    ),
-                    content=ft.Row(
-                        controls=[
-                            ft.Container(
-                                padding=8,
-                                border_radius=10,
-                                on_click=voltar_inicio,
-                                content=ft.Icon(
-                                    ft.Icons.ARROW_BACK,
-                                    color=MARROM,
-                                    size=24,
-                                ),
-                            ),
-                            ft.Text(
-                                "Custos Fixos & Rateio",
-                                size=22,
-                                weight=ft.FontWeight.BOLD,
-                                color=MARROM,
-                            ),
-                        ],
-                    ),
+                criar_cabecalho_padrao(
+                    "Custos Fixos & Rateio",
+                    "Despesas, mão de obra e parâmetros de precificação.",
+                    voltar_inicio,
                 ),
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=18),
