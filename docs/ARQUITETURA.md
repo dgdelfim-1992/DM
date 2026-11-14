@@ -22,7 +22,7 @@ Evoluir o aplicativo de forma incremental, separando interface, regras de negóc
 4. Telas não devem executar SQL diretamente; devem chamar a camada `database` ou serviços.
 5. Cálculos de precificação e regras financeiras devem ser centralizados em serviços, preservando os resultados já validados.
 6. Componentes compartilhados devem receber parâmetros explícitos, evitando dependências ocultas da função `main`.
-7. Cada extração deve ser pequena, revisada e validada antes da próxima.
+7. Cada extração deve ser pequena e revisada; a execução integrada dos testes fica concentrada na etapa final do ciclo de desenvolvimento.
 8. Não incorporar branches divergentes inteiras; portar somente arquivos cuja compatibilidade tenha sido conferida.
 
 ## Etapas
