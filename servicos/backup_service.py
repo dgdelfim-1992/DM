@@ -76,21 +76,26 @@ def criar_backup_automatico(limite=15, caminho_banco=None):
     pasta_backups.mkdir(parents=True, exist_ok=True)
     hoje = datetime.now().strftime("%Y%m%d")
     backups_hoje = sorted(pasta_backups.glob(f"automatico_{hoje}_*.db"))
+    backup_do_dia = None
     for existente in reversed(backups_hoje):
         try:
             validar_banco(existente)
-            return existente
+            backup_do_dia = existente
+            break
         except (ValueError, sqlite3.DatabaseError):
             continue
-    destino = pasta_backups / datetime.now().strftime(
-        "automatico_%Y%m%d_%H%M%S_%f.db"
-    )
-    criar_copia_sqlite(banco, destino)
-    try:
-        validar_banco(destino)
-    except Exception:
-        destino.unlink(missing_ok=True)
-        raise
+
+    if backup_do_dia is None:
+        backup_do_dia = pasta_backups / datetime.now().strftime(
+            "automatico_%Y%m%d_%H%M%S_%f.db"
+        )
+        criar_copia_sqlite(banco, backup_do_dia)
+        try:
+            validar_banco(backup_do_dia)
+        except Exception:
+            backup_do_dia.unlink(missing_ok=True)
+            raise
+
     backups = sorted(
         pasta_backups.glob("automatico_*.db"),
         key=lambda arquivo: arquivo.stat().st_mtime,
@@ -98,7 +103,7 @@ def criar_backup_automatico(limite=15, caminho_banco=None):
     )
     for antigo in backups[limite:]:
         antigo.unlink()
-    return destino
+    return backup_do_dia
 
 
 def gerar_backup_bytes(caminho_banco=None):
