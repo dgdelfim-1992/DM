@@ -46,7 +46,6 @@ def criar_telas_relatorios(dependencias):
     ft = dependencias["ft"]
     page = dependencias["page"]
     datetime = dependencias["datetime"]
-    LOGO_DM_BASE64 = dependencias["LOGO_DM_BASE64"]
     BRANCO = dependencias["BRANCO"]
     MARROM = dependencias["MARROM"]
     ROSA = dependencias["ROSA"]
@@ -441,7 +440,7 @@ def criar_telas_relatorios(dependencias):
                         border_radius=16,
                         alignment=ft.Alignment(0, 0),
                         content=ft.Image(
-                            src=LOGO_DM_BASE64,
+                            src="images/logo-dm-gulositos.png",
                             width=74,
                             height=74,
                             fit=ft.BoxFit.CONTAIN,
