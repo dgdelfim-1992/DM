@@ -21,6 +21,7 @@ exclude = [
     "database/dm_gulositos.db-wal",
     "database/dm_gulositos.db-shm",
     "backup_gulositos.db",
+    "tela_precificacao.py",
 ]
 
 [tool.flet.splash]
