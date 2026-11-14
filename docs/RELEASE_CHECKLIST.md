@@ -21,8 +21,10 @@
 - [ ] Conferir execução web.
 
 ## APK
-- [ ] Gerar o APK de release.
+- [ ] Exportar um backup válido do banco real no computador e guardá-lo fora da pasta do projeto.
+- [ ] Gerar o APK de release sem incluir bancos SQLite ou backups locais.
 - [ ] Instalar em Android e conferir ícone, tela de abertura e nome.
+- [ ] Importar o backup exportado no celular e conferir os registros.
 - [ ] Conferir persistência dos dados após fechar e reabrir.
 - [ ] Conferir atualização sobre uma instalação anterior sem perda de dados.
 - [ ] Guardar uma cópia do APK e do backup final em local externo.
