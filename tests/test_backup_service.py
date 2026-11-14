@@ -76,7 +76,7 @@ class TestBackupService(unittest.TestCase):
 
     def test_restauracao_invalida_nao_altera_banco_atual(self):
         with self.assertRaises(ValueError):
-            restaurar_banco_bytes(b"arquivo inválido", self.banco)
+            restaurar_banco_bytes("arquivo inválido".encode("utf-8"), self.banco)
         self.assertEqual(self._nome_ingrediente(self.banco), "produto original")
         self.assertFalse((self.pasta / "backups").exists())
 
