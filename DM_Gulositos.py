@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 import flet as ft
 import json
 
-from logo_dm import LOGO_DM_BASE64
 from telas.menu import criar_tela_menu
 from telas.agenda import criar_abrir_agenda_producao
 from telas.orcamentos import criar_abrir_orcamentos
@@ -1632,7 +1631,6 @@ def main(page: ft.Page):
         "ft": ft,
         "page": page,
         "datetime": datetime,
-        "LOGO_DM_BASE64": LOGO_DM_BASE64,
         "BRANCO": BRANCO,
         "MARROM": MARROM,
         "ROSA": ROSA,
