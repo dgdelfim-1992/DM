@@ -114,3 +114,6 @@ As telas modulares não executam SQL diretamente. Consultas de listagem, configu
 ## Estado de validação
 
 Os novos testes de backup, migração e consultas foram adicionados ao projeto, mas não foram executados durante a fase de implementação. A execução completa permanece reservada para a etapa final, junto com a validação manual, execução web e build do APK.
+
+
+O banco SQLite de produção e a pasta de backups locais são excluídos explicitamente do empacotamento Android. Para transferir dados reais para uma instalação nova, o fluxo de distribuição é exportar o backup no computador e importá-lo no dispositivo. Isso evita embutir dados operacionais no APK.
