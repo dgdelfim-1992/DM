@@ -54,8 +54,6 @@ from database.banco import (
     calcular_precificacao_produto,
     excluir_ingrediente,
     cadastrar_ingrediente,
-    listar_ingredientes,
-    obter_ingrediente,
     atualizar_ingrediente,
     cadastrar_receita,
     obter_receita,
