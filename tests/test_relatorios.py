@@ -205,5 +205,57 @@ class TestRelatorioPrecificacaoV2(unittest.TestCase):
         self.assertEqual(banco.listar_relatorio_precificacao_v2(), [])
 
 
+class TestIndicadoresRelatorioV2(unittest.TestCase):
+    def criar_registro(self, **alteracoes):
+        registro = {
+            "historico_id": 1,
+            "preco_praticado_centavos": 2000,
+            "custo_total_centavos": 1200,
+            "taxa_cartao_pct": 5,
+            "impostos_pct": 10,
+            "margem_contribuicao_centavos": 700,
+            "custo_insumo_centavos": 500,
+            "custo_mao_obra_centavos": 200,
+            "custo_fixo_centavos": 300,
+            "preco_sugerido_centavos": 2500,
+            "status": "Dentro da Margem",
+        }
+        registro.update(alteracoes)
+        return registro
+
+    def test_calcula_resultado_apos_rateio_e_margem_com_snapshot(self):
+        resultado = __import__(
+            "telas.relatorios", fromlist=["calcular_indicadores_relatorio_v2"]
+        ).calcular_indicadores_relatorio_v2(self.criar_registro())
+
+        self.assertEqual(resultado["custo_insumo"], 5.0)
+        self.assertEqual(resultado["custo_mao_obra"], 2.0)
+        self.assertEqual(resultado["custo_fixo"], 3.0)
+        self.assertEqual(resultado["custo_total"], 12.0)
+        self.assertEqual(resultado["preco_sugerido"], 25.0)
+        self.assertEqual(resultado["preco_praticado"], 20.0)
+        self.assertEqual(resultado["margem_contribuicao"], 7.0)
+        self.assertAlmostEqual(resultado["margem_real_pct"], 35.0)
+        self.assertAlmostEqual(resultado["resultado_apos_rateio"], 5.0)
+        self.assertEqual(resultado["status"], "Dentro da Margem")
+
+    def test_preco_praticado_zero_nao_divide_por_zero(self):
+        from telas.relatorios import calcular_indicadores_relatorio_v2
+
+        resultado = calcular_indicadores_relatorio_v2(
+            self.criar_registro(preco_praticado_centavos=0)
+        )
+
+        self.assertEqual(resultado["margem_real_pct"], 0)
+        self.assertEqual(resultado["resultado_apos_rateio"], -12.0)
+
+    def test_precificacao_sem_historico_nao_gera_indicadores(self):
+        from telas.relatorios import calcular_indicadores_relatorio_v2
+
+        self.assertIsNone(
+            calcular_indicadores_relatorio_v2({"historico_id": None})
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
