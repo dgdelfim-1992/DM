@@ -19,7 +19,8 @@
 - Dupla confirmação antes de restaurar um backup.
 - Cópia de segurança do banco atual antes da restauração.
 - Migração para o armazenamento persistente do Flet, mantendo o banco legado original.
-- Arquivos SQLite locais e diretórios de dados excluídos do versionamento.
+- Arquivos SQLite locais e diretórios de dados excluídos do versionamento e do pacote APK.
+- Transferência de dados para o Android realizada por backup exportado/importado, sem embutir dados reais no instalador.
 
 ### Validação
 - Testes automatizados de backup, restauração, migração e consultas adicionados.
