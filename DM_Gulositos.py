@@ -1,10 +1,6 @@
-import sqlite3
-import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 import flet as ft
-import os
-import shutil
 import json
 
 from logo_dm import LOGO_DM_BASE64
@@ -17,9 +13,13 @@ from telas.custos_fixos import criar_abrir_custos_fixos
 from telas.relatorios import criar_telas_relatorios
 from componentes.ui import criar_componentes_padrao
 
-from database.banco import (
-    CAMINHO_BANCO,
+from servicos.backup_service import (
     criar_backup_automatico,
+    gerar_backup_bytes,
+    restaurar_banco_bytes,
+)
+
+from database.banco import (
     listar_precificacoes,
     listar_historico_precificacao_v2,
     listar_relatorio_precificacao_v2,
@@ -154,147 +154,6 @@ def main(page: ft.Page):
     criar_dialogo_padrao = componentes["dialogo"]
     criar_cabecalho_padrao = componentes["cabecalho"]
     criar_botao_primario = componentes["botao_primario"]
-
-    # ==================================================
-    # BACKUP E RESTAURAÇÃO SEGURA DO BANCO
-    # ==================================================
-
-    def criar_copia_sqlite(origem, destino):
-        """Cria uma cópia consistente usando o próprio SQLite."""
-
-        origem = Path(origem)
-        destino = Path(destino)
-
-        destino.parent.mkdir(parents=True, exist_ok=True)
-
-        conexao_origem = sqlite3.connect(str(origem))
-        conexao_destino = sqlite3.connect(str(destino))
-
-        try:
-            conexao_origem.backup(conexao_destino)
-            conexao_destino.commit()
-        finally:
-            conexao_destino.close()
-            conexao_origem.close()
-
-    def gerar_backup_bytes():
-        """Gera o arquivo de backup para exportação."""
-
-        if not CAMINHO_BANCO.exists():
-            raise FileNotFoundError("Banco de dados não encontrado.")
-
-        with tempfile.TemporaryDirectory() as pasta:
-            arquivo_temp = Path(pasta) / "backup_gulositos.db"
-
-            criar_copia_sqlite(CAMINHO_BANCO, arquivo_temp)
-
-            return arquivo_temp.read_bytes()
-
-    def validar_banco(caminho):
-        """Verifica se o arquivo é um banco SQLite íntegro."""
-
-        conexao = sqlite3.connect(
-            f"file:{Path(caminho).resolve().as_posix()}?mode=ro",
-            uri=True
-        )
-
-        try:
-            resultado = conexao.execute(
-                "PRAGMA integrity_check"
-            ).fetchone()
-
-            if not resultado or resultado[0] != "ok":
-                raise ValueError("O banco está corrompido.")
-
-            tabelas = {
-                linha[0]
-                for linha in conexao.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-            }
-
-            obrigatorias = {
-                "ingredientes",
-                "receitas",
-                "configuracoes"
-            }
-
-            if not obrigatorias.issubset(tabelas):
-                raise ValueError(
-                    "O arquivo selecionado não pertence à DM Gulositos."
-                )
-
-        finally:
-            conexao.close()
-
-    def restaurar_banco_bytes(conteudo):
-        """Valida, protege o banco atual e restaura o selecionado."""
-
-        if not conteudo:
-            raise ValueError("O arquivo selecionado está vazio.")
-
-        CAMINHO_BANCO.parent.mkdir(parents=True, exist_ok=True)
-
-        arquivo_temp = None
-
-        try:
-            # 1. Salva o arquivo selecionado temporariamente
-            with tempfile.NamedTemporaryFile(
-                mode="wb",
-                suffix=".db",
-                prefix="restauracao_",
-                dir=CAMINHO_BANCO.parent,
-                delete=False
-            ) as arquivo:
-
-                arquivo.write(conteudo)
-                arquivo_temp = Path(arquivo.name)
-
-            # 2. Valida o backup antes de mexer no banco atual
-            validar_banco(arquivo_temp)
-
-            # 3. Finaliza eventuais operações pendentes do banco atual
-            if CAMINHO_BANCO.exists():
-
-                conexao = sqlite3.connect(str(CAMINHO_BANCO))
-
-                try:
-                    conexao.execute(
-                        "PRAGMA wal_checkpoint(TRUNCATE)"
-                    )
-                finally:
-                    conexao.close()
-
-                # 4. Cria uma cópia automática de segurança
-                pasta_backups = CAMINHO_BANCO.parent / "backups"
-                pasta_backups.mkdir(parents=True, exist_ok=True)
-
-                data = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                backup_atual = (
-                    pasta_backups /
-                    f"antes_restauracao_{data}.db"
-                )
-
-                criar_copia_sqlite(
-                    CAMINHO_BANCO,
-                    backup_atual
-                )
-
-                # 5. Remove arquivos auxiliares do banco anterior
-                for sufixo in ("-wal", "-shm"):
-                    auxiliar = Path(str(CAMINHO_BANCO) + sufixo)
-
-                    if auxiliar.exists():
-                        auxiliar.unlink()
-
-            # 6. Substitui o banco somente depois de validar
-            os.replace(arquivo_temp, CAMINHO_BANCO)
-            arquivo_temp = None
-
-        finally:
-            if arquivo_temp and arquivo_temp.exists():
-                arquivo_temp.unlink()
 
     # ==================================================
     # FILE PICKER - COMPATÍVEL COM FLET 1.0+
