@@ -1455,6 +1455,58 @@ def criar_tabela_precificacao_v2():
     finally:
         conexao.close()
 
+def listar_relatorio_precificacao_v2():
+    """
+    Retorna uma linha por precificação ativa, acompanhada do histórico mais
+    recente salvo para ela.
+
+    Os valores financeiros vêm do histórico, e não são recalculados com os
+    custos atuais. Precificações sem histórico também são retornadas, com os
+    campos do histórico definidos como None.
+    """
+    conexao = obter_conexao()
+    try:
+        return conexao.execute("""
+            SELECT
+                p.id AS precificacao_id,
+                p.receita_id,
+                r.nome AS nome_receita_atual,
+                r.rendimento_unidades,
+                r.unidade_rendimento,
+                h.id AS historico_id,
+                h.nome_receita,
+                h.quantidade_embalagem,
+                h.custo_embalagem_centavos,
+                h.taxa_cartao_pct,
+                h.markup_ideal_pct,
+                h.custo_insumo_centavos,
+                h.custo_fixo_centavos,
+                h.custo_mao_obra_centavos,
+                h.impostos_pct,
+                h.custo_total_centavos,
+                h.preco_sugerido_centavos,
+                h.preco_praticado_centavos,
+                h.markup_aplicado_pct,
+                h.margem_contribuicao_centavos,
+                h.status,
+                h.registrado_em
+            FROM precificacao_v2 p
+            INNER JOIN receitas r ON r.id = p.receita_id
+            LEFT JOIN historico_precificacao_v2 h
+                ON h.id = (
+                    SELECT h2.id
+                    FROM historico_precificacao_v2 h2
+                    WHERE h2.precificacao_id = p.id
+                    ORDER BY h2.registrado_em DESC, h2.id DESC
+                    LIMIT 1
+                )
+            WHERE r.ativo = 1
+            ORDER BY r.nome COLLATE NOCASE, p.id
+        """).fetchall()
+    finally:
+        conexao.close()
+
+
 def listar_precificacoes():
     conexao = obter_conexao()
     try:
