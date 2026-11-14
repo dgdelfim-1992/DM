@@ -21,10 +21,16 @@ def calcular_indicadores_relatorio_v2(registro):
         if preco_praticado > 0 else 0
     )
 
+    custo_insumo = (registro["custo_insumo_centavos"] or 0) / 100
+    custo_mao_obra = (registro["custo_mao_obra_centavos"] or 0) / 100
+    custo_fixo = (registro["custo_fixo_centavos"] or 0) / 100
+    custo_embalagem = custo_total - custo_insumo - custo_mao_obra - custo_fixo
+
     return {
-        "custo_insumo": (registro["custo_insumo_centavos"] or 0) / 100,
-        "custo_mao_obra": (registro["custo_mao_obra_centavos"] or 0) / 100,
-        "custo_fixo": (registro["custo_fixo_centavos"] or 0) / 100,
+        "custo_insumo": custo_insumo,
+        "custo_mao_obra": custo_mao_obra,
+        "custo_fixo": custo_fixo,
+        "custo_embalagem": custo_embalagem,
         "custo_total": custo_total,
         "preco_sugerido": (registro["preco_sugerido_centavos"] or 0) / 100,
         "preco_praticado": preco_praticado,
@@ -240,12 +246,17 @@ def criar_telas_relatorios(dependencias):
                                     color=TEXTO_SECUNDARIO,
                                 ),
                                 ft.Text(
-                                    f"Custo total: R$ {item['custo_total']:.2f}",
-                                    size=12,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=MARROM,
+                                    f"Embalagem: R$ {item['custo_embalagem']:.2f}",
+                                    size=11,
+                                    color=TEXTO_SECUNDARIO,
                                 ),
                             ],
+                        ),
+                        ft.Text(
+                            f"Custo total: R$ {item['custo_total']:.2f}",
+                            size=12,
+                            weight=ft.FontWeight.BOLD,
+                            color=MARROM,
                         ),
                         ft.Row(
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
