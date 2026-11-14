@@ -1,0 +1,20 @@
+[project]
+name = "dm"
+version = "1.0.0"
+description = "Aplicativo de gestão da doceria DM Gulositos"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "flet==1.0.4",
+]
+
+[tool.flet]
+product = "DM Gulositos"
+icon_background = "#F8F1EF"
+
+[tool.flet.app]
+module = "DM_Gulositos"
+exclude = ["tests", "docs"]
+
+[tool.flet.splash]
+color = "#F8F1EF"
+dark_color = "#603D3B"
