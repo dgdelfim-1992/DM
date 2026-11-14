@@ -21,7 +21,8 @@ Aplicativo de apoio à gestão de uma doceria, desenvolvido em Python, Flet e SQ
 - `servicos/`: regras de negócio independentes da interface.
 - `database/`: persistência e operações SQLite.
 - `tests/`: testes automatizados.
-- `docs/`: documentação técnica.
+- `docs/`: documentação técnica e checklist de versão.
+- `assets/`: ícone e tela de abertura do aplicativo.
 
 ## Ambiente de desenvolvimento
 
