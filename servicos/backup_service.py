@@ -101,8 +101,12 @@ def criar_backup_automatico(limite=15, caminho_banco=None):
         key=lambda arquivo: arquivo.stat().st_mtime,
         reverse=True,
     )
-    for antigo in backups[limite:]:
-        antigo.unlink()
+    manter = backups[:limite]
+    if backup_do_dia not in manter:
+        manter[-1] = backup_do_dia
+    for antigo in backups:
+        if antigo not in manter:
+            antigo.unlink()
     return backup_do_dia
 
 
