@@ -54,7 +54,12 @@ A versão analisada concentra a interface em `DM_Gulositos.py` e possui uma cama
 - [x] Separar fórmulas puras de precificação em `servicos/precificacao_service.py`.
 - [x] Adicionar testes unitários para as fórmulas centrais de preço e margem.
 - [x] Extrair relatórios e painel inicial para `telas/relatorios.py`.
-- [ ] Criar/validar testes automatizados, execução web e build APK.
+- [x] Centralizar backup, exportação, validação e restauração em serviço dedicado.
+- [x] Centralizar consultas de receitas, custos e dados-base de relatórios na camada de banco.
+- [x] Migrar o SQLite para o armazenamento persistente do Flet sem apagar o banco legado.
+- [x] Configurar identidade, versão, ícone e tela de abertura do aplicativo.
+- [x] Documentar instalação, estrutura e proteção dos dados.
+- [ ] Executar a suíte automatizada, validar a execução web e gerar/instalar o APK na etapa final.
 
 A extração da agenda preserva os filtros por status e data, ordenação das entregas, destaque de atrasos/entregas do dia e atualização do status de produção. A validação funcional ainda depende da execução local do aplicativo.
 
@@ -100,3 +105,12 @@ Os recursos visuais do aplicativo ficam em `assets/icon.svg` e `assets/splash.sv
 O caminho do banco é resolvido em `database/caminhos.py`. Quando `FLET_APP_STORAGE_DATA` está definido, o SQLite utiliza o diretório privado e persistente do aplicativo, mantendo o banco fora dos arquivos empacotados. Em execução direta sem essa variável, permanece o caminho legado dentro de `database/`.
 
 Na primeira execução com o diretório persistente do Flet, o banco legado é copiado com a API de backup do SQLite e passa por `PRAGMA integrity_check`. A cópia original permanece no local antigo; a migração não apaga nem sobrescreve o arquivo de origem. A pasta `.flet/` e arquivos SQLite locais são ignorados pelo Git.
+
+
+## Camada de interface e consultas
+
+As telas modulares não executam SQL diretamente. Consultas de listagem, configurações e dados-base dos relatórios são disponibilizadas por funções em `database/banco.py`. A tela recebe essas funções por injeção de dependências. Cabeçalhos compartilhados são usados para manter a navegação e a hierarquia visual consistentes.
+
+## Estado de validação
+
+Os novos testes de backup, migração e consultas foram adicionados ao projeto, mas não foram executados durante a fase de implementação. A execução completa permanece reservada para a etapa final, junto com a validação manual, execução web e build do APK.
