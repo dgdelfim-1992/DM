@@ -55,6 +55,8 @@ Os testes de serviços que manipulam SQLite devem usar bancos temporários. Não
 - Na execução direta por `python DM_Gulositos.py`, sem a variável do Flet, o caminho legado `database/dm_gulositos.db` continua sendo utilizado.
 - Na primeira inicialização com armazenamento Flet, o banco legado é copiado para o novo diretório por meio do SQLite e validado. O arquivo de origem não é apagado.
 - Cópias automáticas e cópias anteriores à restauração ficam na pasta `database/backups/` dentro do diretório de dados ativo.
+- O banco real e os backups locais são excluídos do APK; dados reais não são embutidos no instalador.
+- Para levar os dados ao celular, exporte um backup no computador e importe-o pela tela Backup e Exportação após instalar o APK.
 - O backup exportado deve ser guardado em local separado do dispositivo.
 - A restauração substitui os dados atuais; confirme o arquivo antes de prosseguir.
 - Antes da restauração, o aplicativo cria uma cópia de segurança do banco atual.
