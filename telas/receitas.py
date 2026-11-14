@@ -14,7 +14,6 @@ def criar_abrir_receitas(dependencias):
     navegacao_ref = dependencias["navegacao_ref"]
     voltar_inicio = dependencias["voltar_inicio"]
     filtro_receita = dependencias["filtro_receita"]
-    obter_conexao = dependencias["obter_conexao"]
     excluir_receita = dependencias["excluir_receita"]
     mostrar_aviso = dependencias["mostrar_aviso"]
     criar_dialogo_padrao = dependencias["criar_dialogo_padrao"]
@@ -22,6 +21,8 @@ def criar_abrir_receitas(dependencias):
     criar_cabecalho_padrao = dependencias["criar_cabecalho_padrao"]
     criar_botao_primario = dependencias["criar_botao_primario"]
     listar_ingredientes = dependencias["listar_ingredientes"]
+    listar_receitas_ativas = dependencias["listar_receitas_ativas"]
+    listar_sub_receitas_ativas = dependencias["listar_sub_receitas_ativas"]
     obter_receita = dependencias["obter_receita"]
     criar_dropdown_padrao = dependencias["criar_dropdown_padrao"]
     criar_campo_padrao = dependencias["criar_campo_padrao"]
@@ -30,19 +31,7 @@ def criar_abrir_receitas(dependencias):
 
     def abrir_receitas(e=None):
     
-        conexao = obter_conexao()
-    
-        try:
-            receitas_todas = conexao.execute(
-                """
-                SELECT *
-                FROM receitas
-                WHERE ativo = 1
-                ORDER BY nome
-                """
-            ).fetchall()
-        finally:
-            conexao.close()
+        receitas_todas = listar_receitas_ativas()
     
         receitas_filtradas = [
             r for r in receitas_todas
@@ -446,20 +435,7 @@ def criar_abrir_receitas(dependencias):
     
         ingredientes_disponiveis = listar_ingredientes()
     
-        conexao = obter_conexao()
-    
-        try:
-            sub_receitas_disponiveis = conexao.execute(
-                """
-                SELECT *
-                FROM receitas
-                WHERE ativo = 1
-                AND tipo = 'SUB_RECEITA'
-                ORDER BY nome
-                """
-            ).fetchall()
-        finally:
-            conexao.close()
+        sub_receitas_disponiveis = listar_sub_receitas_ativas()
     
         dados_edicao = None
         em_edicao = receita_id is not None
