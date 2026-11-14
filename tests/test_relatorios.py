@@ -231,6 +231,7 @@ class TestIndicadoresRelatorioV2(unittest.TestCase):
         self.assertEqual(resultado["custo_insumo"], 5.0)
         self.assertEqual(resultado["custo_mao_obra"], 2.0)
         self.assertEqual(resultado["custo_fixo"], 3.0)
+        self.assertEqual(resultado["custo_embalagem"], 2.0)
         self.assertEqual(resultado["custo_total"], 12.0)
         self.assertEqual(resultado["preco_sugerido"], 25.0)
         self.assertEqual(resultado["preco_praticado"], 20.0)
