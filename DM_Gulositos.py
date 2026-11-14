@@ -384,19 +384,10 @@ def main(page: ft.Page):
             scroll=ft.ScrollMode.AUTO,
             spacing=16,
             controls=[
-                ft.Container(
-                    padding=ft.Padding.only(left=15, right=20, top=20, bottom=10),
-                    content=ft.Row(
-                        controls=[
-                            ft.Container(
-                                padding=8,
-                                border_radius=10,
-                                on_click=abrir_menu_opcoes,
-                                content=ft.Icon(ft.Icons.ARROW_BACK, color=MARROM, size=24),
-                            ),
-                            ft.Text("Backup e Restauração", size=22, weight=ft.FontWeight.BOLD, color=MARROM),
-                        ]
-                    )
+                criar_cabecalho_padrao(
+                    "Backup e Restauração",
+                    "Proteja os dados da doceria com cópias seguras.",
+                    abrir_menu_opcoes,
                 ),
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=18),
