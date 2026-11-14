@@ -189,5 +189,14 @@ def criar_tela_menu(ft, acoes, cores):
                     ],
                 ),
             ),
+            ft.Container(
+                padding=ft.Padding.only(top=2, bottom=18),
+                alignment=ft.Alignment(0, 0),
+                content=ft.Text(
+                    "DM Gulositos  •  versão 1.0.0",
+                    size=10,
+                    color=texto_secundario,
+                ),
+            ),
         ],
     )
