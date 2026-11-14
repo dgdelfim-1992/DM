@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#F8F1EF"/>
+  <circle cx="512" cy="390" r="310" fill="#FFF9F1" stroke="#D9828B" stroke-width="18"/>
+  <circle cx="512" cy="390" r="282" fill="none" stroke="#E9B5B1" stroke-width="8"/>
+  <g fill="#603D3B" font-family="Georgia,serif" font-weight="bold" text-anchor="middle">
+    <text x="512" y="500" font-size="300" letter-spacing="-28">DM</text>
+  </g>
+  <path d="M685 145 C744 98 800 130 794 185 C788 234 738 268 685 307 C632 268 582 234 576 185 C570 130 626 98 685 145Z" fill="#E9A0A5" stroke="#603D3B" stroke-width="14"/>
+  <path d="M650 180 L720 180 M685 145 L685 245" stroke="#FFF5E9" stroke-width="10" stroke-linecap="round"/>
+  <g fill="#603D3B" font-family="Georgia,serif" text-anchor="middle">
+    <text x="512" y="790" font-size="100" font-weight="bold">DM Gulositos</text>
+    <text x="512" y="850" font-size="30" letter-spacing="8">DOCERIA • CARINHO EM CADA DETALHE</text>
+  </g>
+  <path d="M250 900 H430 M594 900 H774" stroke="#A65F72" stroke-width="7" stroke-linecap="round"/>
+  <path d="M512 885 C535 860 570 870 568 900 C566 925 538 944 512 960 C486 944 458 925 456 900 C454 870 489 860 512 885Z" fill="#D9828B"/>
+</svg>
