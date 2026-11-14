@@ -25,5 +25,5 @@ exclude = [
 ]
 
 [tool.flet.splash]
-color = "#F8F1EF"
+color = "#D98889"
 dark_color = "#603D3B"
