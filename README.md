@@ -25,7 +25,7 @@ Aplicativo de apoio à gestão de uma doceria, desenvolvido em Python, Flet e SQ
 
 ## Ambiente de desenvolvimento
 
-Recomenda-se Python 3.12 ou a versão definida para o ambiente de desenvolvimento do projeto.
+Recomenda-se Python 3.12, 3.13 ou 3.14. A configuração de build seleciona uma versão compatível dentro desse intervalo.
 
 No Windows, dentro da pasta do projeto:
 
@@ -33,10 +33,10 @@ No Windows, dentro da pasta do projeto:
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install flet==1.0.4 flet-charts==1.0.4
+pip install flet==1.0.4
 ```
 
-Execute a aplicação conforme o modo de desenvolvimento configurado no ambiente Flet.
+Execute a aplicação com `flet run --module-name DM_Gulositos` ou use `python DM_Gulositos.py`. Para gerar o APK, use `flet build apk`.
 
 ## Testes automatizados
 
