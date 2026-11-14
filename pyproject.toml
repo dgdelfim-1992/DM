@@ -13,7 +13,15 @@ icon_background = "#F8F1EF"
 
 [tool.flet.app]
 module = "DM_Gulositos"
-exclude = ["tests", "docs"]
+exclude = [
+    "tests",
+    "docs",
+    "database/backups",
+    "database/dm_gulositos.db",
+    "database/dm_gulositos.db-wal",
+    "database/dm_gulositos.db-shm",
+    "backup_gulositos.db",
+]
 
 [tool.flet.splash]
 color = "#F8F1EF"
