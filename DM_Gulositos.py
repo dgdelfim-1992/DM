@@ -739,14 +739,10 @@ def main(page: ft.Page):
             scroll=ft.ScrollMode.AUTO,
             spacing=16,
             controls=[
-                ft.Container(
-                    padding=ft.Padding.only(left=15, right=20, top=20, bottom=10),
-                    content=ft.Row(
-                        controls=[
-                            ft.Container(padding=8, border_radius=10, on_click=voltar_inicio, content=ft.Icon(ft.Icons.ARROW_BACK, color=MARROM, size=24)),
-                            ft.Text("Precificação", size=23, weight=ft.FontWeight.BOLD, color=MARROM),
-                        ]
-                    )
+                criar_cabecalho_padrao(
+                    "Precificação",
+                    "Calcule custos e preços de venda dos produtos.",
+                    voltar_inicio,
                 ),
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=18),
