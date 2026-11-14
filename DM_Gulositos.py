@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from pathlib import Path
 import flet as ft
 import json
 
@@ -224,6 +223,69 @@ def main(page: ft.Page):
                 "#C62828"
             )
 
+
+    def solicitar_restauracao(e=None):
+        """Exige duas confirmações antes de substituir os dados atuais."""
+
+        def cancelar_primeira(ev):
+            dialogo_primeiro.open = False
+            page.update()
+
+        def avancar_confirmacao(ev):
+            dialogo_primeiro.open = False
+            dialogo_final.open = True
+            page.update()
+
+        async def confirmar_restauracao(ev):
+            dialogo_final.open = False
+            page.update()
+            await acionar_importar(ev)
+
+        dialogo_final = criar_dialogo_padrao(
+            modal=True,
+            title=ft.Text("Confirmação final de restauração"),
+            content=ft.Text(
+                "A restauração substituirá os dados atuais pelo conteúdo do backup. "
+                "Uma cópia do banco atual será guardada antes da substituição. "
+                "Deseja realmente continuar?"
+            ),
+            actions=[
+                ft.TextButton(
+                    "Cancelar",
+                    on_click=lambda ev: fechar_dialogo_restauracao(dialogo_final),
+                ),
+                ft.Button(
+                    "Restaurar agora",
+                    icon=ft.Icons.RESTORE,
+                    bgcolor="#A52D35",
+                    color=BRANCO,
+                    on_click=confirmar_restauracao,
+                ),
+            ],
+        )
+
+        dialogo_primeiro = criar_dialogo_padrao(
+            modal=True,
+            title=ft.Text("Atenção: os dados serão substituídos"),
+            content=ft.Text(
+                "Antes de escolher o arquivo, confirme que você possui um backup "
+                "válido. A restauração não mescla informações: ela substitui o "
+                "banco atual pelo backup selecionado."
+            ),
+            actions=[
+                ft.TextButton("Cancelar", on_click=cancelar_primeira),
+                ft.Button("Continuar", on_click=avancar_confirmacao),
+            ],
+        )
+        page.overlay.append(dialogo_primeiro)
+        page.overlay.append(dialogo_final)
+        dialogo_primeiro.open = True
+        page.update()
+
+    def fechar_dialogo_restauracao(dialogo):
+        dialogo.open = False
+        page.update()
+
     # ==================================================
     # NAVEGAÇÃO
     # ==================================================
@@ -363,7 +425,7 @@ def main(page: ft.Page):
                                 bgcolor=BRANCO,
                                 padding=20,
                                 border_radius=16,
-                                on_click=acionar_importar,
+                                on_click=solicitar_restauracao,
                                 content=ft.Row(
                                     controls=[
                                         ft.Icon(ft.Icons.UPLOAD_FILE, color="#C62828", size=40),
