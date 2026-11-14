@@ -1,7 +1,6 @@
 import sqlite3
 import math
 import json
-from pathlib import Path
 from datetime import datetime, date, timedelta
 
 from servicos.precificacao_service import (
@@ -9,10 +8,12 @@ from servicos.precificacao_service import (
     calcular_indicadores_preco_praticado,
 )
 
-PASTA_PROJETO = Path(__file__).resolve().parent.parent
-CAMINHO_BANCO = PASTA_PROJETO / "database" / "dm_gulositos.db"
-
-
+from database.caminhos import (
+    PASTA_PROJETO,
+    CAMINHO_BANCO,
+    CAMINHO_BANCO_LEGADO,
+    migrar_banco_legado_se_necessario,
+)
 from servicos.backup_service import criar_backup_automatico
 
 
@@ -20,6 +21,7 @@ from servicos.backup_service import criar_backup_automatico
 # CONEXÃO COM O BANCO
 # =========================================================
 def obter_conexao():
+    migrar_banco_legado_se_necessario()
     CAMINHO_BANCO.parent.mkdir(parents=True, exist_ok=True)
     conexao = sqlite3.connect(CAMINHO_BANCO)
     conexao.row_factory = sqlite3.Row
