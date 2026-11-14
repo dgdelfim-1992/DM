@@ -54,7 +54,7 @@ class TestConsultasCentralizadas(unittest.TestCase):
     def test_faturamento_mensal_tem_padrao_e_pode_ser_atualizado(self):
         self.assertEqual(banco.obter_faturamento_mensal(), "2000.00")
         banco.salvar_faturamento_mensal("3500,50")
-        self.assertEqual(banco.obter_faturamento_mensal(), "3500,50")
+        self.assertEqual(banco.obter_faturamento_mensal(), "3500.50")
 
     def test_faturamento_mensal_rejeita_valores_invalidos(self):
         for valor in ("0", "-10", "nan", "texto"):
