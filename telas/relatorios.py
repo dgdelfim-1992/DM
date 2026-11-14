@@ -55,9 +55,9 @@ def criar_telas_relatorios(dependencias):
     indice_atual = dependencias["indice_atual"]
     navegacao_ref = dependencias["navegacao_ref"]
     voltar_inicio = dependencias["voltar_inicio"]
-    obter_conexao = dependencias["obter_conexao"]
     calcular_custo_receita = dependencias["calcular_custo_receita"]
     listar_relatorio_precificacao_v2 = dependencias["listar_relatorio_precificacao_v2"]
+    obter_dados_relatorio_geral = dependencias["obter_dados_relatorio_geral"]
     calcular_custo_fixo_proporcional = dependencias["calcular_custo_fixo_proporcional"]
     obter_dados_painel = dependencias["obter_dados_painel"]
     criar_indicador = dependencias["criar_indicador"]
@@ -68,31 +68,11 @@ def criar_telas_relatorios(dependencias):
     abrir_ingredientes = dependencias["abrir_ingredientes"]
 
     def abrir_relatorios(e=None):
-        conexao = obter_conexao()
-        try:
-            receitas = conexao.execute(
-                """
-                SELECT *
-                FROM receitas
-                WHERE ativo = 1
-                ORDER BY tipo DESC, nome
-                """
-            ).fetchall()
-
-            custos = conexao.execute("SELECT * FROM custos_fixos").fetchall()
-            ingredientes = conexao.execute(
-                "SELECT * FROM ingredientes WHERE ativo = 1"
-            ).fetchall()
-            fat_row = conexao.execute(
-                """
-                SELECT valor
-                FROM configuracoes
-                WHERE chave = 'faturamento_mensal'
-                """
-            ).fetchone()
-            faturamento_alvo = float(fat_row["valor"]) if fat_row else 2000.0
-        finally:
-            conexao.close()
+        dados_gerais = obter_dados_relatorio_geral()
+        receitas = dados_gerais["receitas"]
+        custos = dados_gerais["custos"]
+        ingredientes = dados_gerais["ingredientes"]
+        faturamento_alvo = dados_gerais["faturamento_alvo"]
 
         total_despesas_fixas = sum(c["valor_centavos"] for c in custos) / 100
         precificacoes_por_receita = {}
