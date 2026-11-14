@@ -343,6 +343,7 @@ def main(page: ft.Page):
         "TEXTO_SECUNDARIO": TEXTO_SECUNDARIO,
         "page": page,
         "abrir_menu_opcoes": lambda ev=None: abrir_menu_opcoes(ev),
+        "criar_cabecalho_padrao": criar_cabecalho_padrao,
         "indice_atual": indice_atual,
         "navegacao_ref": navegacao_ref,
     })
@@ -1628,6 +1629,7 @@ def main(page: ft.Page):
         "obter_markup_ideal": obter_markup_ideal,
         "obter_margem_minima": obter_margem_minima,
         "criar_campo_padrao": criar_campo_padrao,
+        "criar_cabecalho_padrao": criar_cabecalho_padrao,
         "salvar_remuneracao_mensal_desejada": salvar_remuneracao_mensal_desejada,
         "salvar_horas_produtivas_mensais": salvar_horas_produtivas_mensais,
         "salvar_impostos_pct": salvar_impostos_pct,
