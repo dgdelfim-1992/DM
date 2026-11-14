@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+
+# SQLite: nunca versionar dados reais ou cópias locais
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+database/backups/
+
+# Flet / Flutter / Android build artifacts
+build/
+dist/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+android/local.properties
+*.apk
+*.aab
+
+# Editor e sistema operacional
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
