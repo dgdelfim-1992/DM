@@ -93,3 +93,10 @@ Os testes do serviço usam bancos SQLite temporários e não devem acessar o ban
 O projeto utiliza `pyproject.toml` como configuração central do Flet. O nome exibido é **DM Gulositos**, a versão inicial desta configuração é **1.0.0** e o módulo de entrada é `DM_Gulositos.py`. O identificador interno do projeto permanece `dm`; não foi definido um novo `org` ou `bundle_id`, evitando alterar sem necessidade o identificador derivado pelo build anterior.
 
 Os recursos visuais do aplicativo ficam em `assets/icon.svg` e `assets/splash.svg`. A cor de fundo da abertura usa a paleta clara da aplicação. O build deve ser conferido no ambiente local antes de distribuir a versão.
+
+
+## Armazenamento persistente no Flet
+
+O caminho do banco é resolvido em `database/caminhos.py`. Quando `FLET_APP_STORAGE_DATA` está definido, o SQLite utiliza o diretório privado e persistente do aplicativo, mantendo o banco fora dos arquivos empacotados. Em execução direta sem essa variável, permanece o caminho legado dentro de `database/`.
+
+Na primeira execução com o diretório persistente do Flet, o banco legado é copiado com a API de backup do SQLite e passa por `PRAGMA integrity_check`. A cópia original permanece no local antigo; a migração não apaga nem sobrescreve o arquivo de origem. A pasta `.flet/` e arquivos SQLite locais são ignorados pelo Git.
