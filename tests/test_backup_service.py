@@ -87,6 +87,19 @@ class TestBackupService(unittest.TestCase):
         self.assertEqual(primeiro, segundo)
         self.assertTrue(validar_banco(primeiro))
 
+    def test_backup_automatico_aplica_retencao_mesmo_com_backup_diario_existente(self):
+        pasta_backups = self.pasta / "backups"
+        pasta_backups.mkdir()
+        antigo = pasta_backups / "automatico_20000101_000000.db"
+        self._criar_banco(antigo, "backup antigo")
+
+        criado = criar_backup_automatico(limite=10, caminho_banco=self.banco)
+        resultado = criar_backup_automatico(limite=1, caminho_banco=self.banco)
+
+        self.assertEqual(resultado, criado)
+        self.assertTrue(criado.exists())
+        self.assertFalse(antigo.exists())
+
     def test_backup_automatico_aplica_limite_de_retencao(self):
         pasta_backups = self.pasta / "backups"
         pasta_backups.mkdir()
