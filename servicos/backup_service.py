@@ -5,8 +5,9 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-PASTA_PROJETO = Path(__file__).resolve().parent.parent
-CAMINHO_BANCO_PADRAO = PASTA_PROJETO / "database" / "dm_gulositos.db"
+from database.caminhos import CAMINHO_BANCO, migrar_banco_legado_se_necessario
+
+CAMINHO_BANCO_PADRAO = CAMINHO_BANCO
 TABELAS_OBRIGATORIAS = {"ingredientes", "receitas", "configuracoes"}
 
 
@@ -66,6 +67,8 @@ def criar_backup_automatico(limite=15, caminho_banco=None):
     """Cria no máximo um backup válido por dia e aplica retenção."""
     if not isinstance(limite, int) or limite < 1:
         raise ValueError("O limite de backups deve ser um número inteiro maior que zero.")
+    if caminho_banco is None:
+        migrar_banco_legado_se_necessario()
     banco = _resolver_caminho(caminho_banco)
     if not banco.is_file() or banco.stat().st_size == 0:
         return None
@@ -100,6 +103,8 @@ def criar_backup_automatico(limite=15, caminho_banco=None):
 
 def gerar_backup_bytes(caminho_banco=None):
     """Gera em memória uma cópia consistente pronta para exportação."""
+    if caminho_banco is None:
+        migrar_banco_legado_se_necessario()
     banco = _resolver_caminho(caminho_banco)
     if not banco.is_file():
         raise FileNotFoundError("Banco de dados não encontrado.")
@@ -114,6 +119,8 @@ def restaurar_banco_bytes(conteudo, caminho_banco=None):
     """Valida o arquivo, protege o banco atual e só então faz a substituição."""
     if not isinstance(conteudo, (bytes, bytearray, memoryview)) or not conteudo:
         raise ValueError("O arquivo selecionado está vazio ou não contém dados válidos.")
+    if caminho_banco is None:
+        migrar_banco_legado_se_necessario()
     banco = _resolver_caminho(caminho_banco)
     banco.parent.mkdir(parents=True, exist_ok=True)
     temporario = None
