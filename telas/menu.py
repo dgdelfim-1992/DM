@@ -2,12 +2,11 @@
 
 
 def criar_tela_menu(ft, acoes, cores):
-    """Monta o menu usando callbacks e cores fornecidos pela aplicação.
+    """Monta o menu responsivo usando callbacks e cores da aplicação.
 
     Args:
         ft: módulo Flet utilizado pela aplicação.
-        acoes: callbacks para ingredientes, receitas, custos, orçamentos,
-            agenda, relatórios e backup.
+        acoes: callbacks dos módulos disponíveis no menu.
         cores: paleta visual da aplicação.
     """
     marrom = cores["marrom"]
@@ -18,76 +17,173 @@ def criar_tela_menu(ft, acoes, cores):
 
     def criar_card_menu(icone, titulo, descricao, acao):
         return ft.Container(
-            expand=True,
-            height=142,
-            padding=14,
+            col={"xs": 12, "sm": 6, "lg": 4},
+            height=148,
+            padding=16,
             bgcolor=branco,
             border_radius=18,
             on_click=acao,
             content=ft.Column(
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.START,
-                spacing=9,
+                spacing=10,
                 controls=[
                     ft.Container(
-                        width=42,
-                        height=42,
-                        border_radius=12,
+                        width=46,
+                        height=46,
+                        border_radius=14,
                         bgcolor=rosa_claro,
                         alignment=ft.Alignment(0, 0),
-                        content=ft.Icon(icone, color=rosa, size=23),
+                        content=ft.Icon(icone, color=rosa, size=25),
                     ),
-                    ft.Text(titulo, size=14, weight=ft.FontWeight.BOLD, color=marrom),
-                    ft.Text(descricao, size=10, color=texto_secundario),
+                    ft.Text(
+                        titulo,
+                        size=14,
+                        weight=ft.FontWeight.BOLD,
+                        color=marrom,
+                    ),
+                    ft.Text(
+                        descricao,
+                        size=11,
+                        color=texto_secundario,
+                    ),
                 ],
             ),
+        )
+
+    def criar_secao(titulo, descricao, itens):
+        return ft.Column(
+            spacing=10,
+            controls=[
+                ft.Container(
+                    padding=ft.Padding.only(left=2, right=2, top=4),
+                    content=ft.Column(
+                        spacing=3,
+                        controls=[
+                            ft.Text(
+                                titulo,
+                                size=15,
+                                weight=ft.FontWeight.BOLD,
+                                color=marrom,
+                            ),
+                            ft.Text(
+                                descricao,
+                                size=11,
+                                color=texto_secundario,
+                            ),
+                        ],
+                    ),
+                ),
+                ft.ResponsiveRow(
+                    spacing=12,
+                    run_spacing=12,
+                    controls=[
+                        criar_card_menu(icone, nome, detalhe, acoes[chave])
+                        for chave, icone, nome, detalhe in itens
+                    ],
+                ),
+            ],
         )
 
     return ft.Column(
         expand=True,
         scroll=ft.ScrollMode.AUTO,
-        spacing=16,
+        spacing=20,
         controls=[
             ft.Container(
                 padding=ft.Padding.only(left=18, right=18, top=22, bottom=2),
-                content=ft.Column(
-                    spacing=4,
-                    controls=[
-                        ft.Text("Menu Principal", size=24, weight=ft.FontWeight.BOLD, color=marrom),
-                        ft.Text("Acesse as ferramentas da sua doceria.", size=12, color=texto_secundario),
-                    ],
+                content=ft.Container(
+                    padding=20,
+                    bgcolor=rosa_claro,
+                    border_radius=20,
+                    content=ft.Column(
+                        spacing=6,
+                        controls=[
+                            ft.Text(
+                                "DM GULOSITOS",
+                                size=11,
+                                weight=ft.FontWeight.BOLD,
+                                color=rosa,
+                            ),
+                            ft.Text(
+                                "Menu Principal",
+                                size=24,
+                                weight=ft.FontWeight.BOLD,
+                                color=marrom,
+                            ),
+                            ft.Text(
+                                "Tudo o que você precisa para organizar e "
+                                "administrar sua doceria.",
+                                size=12,
+                                color=texto_secundario,
+                            ),
+                        ],
+                    ),
                 ),
             ),
             ft.Container(
                 padding=ft.Padding.symmetric(horizontal=18),
                 content=ft.Column(
-                    spacing=12,
+                    spacing=20,
                     controls=[
-                        ft.Row(
-                            spacing=12,
-                            controls=[
-                                criar_card_menu(ft.Icons.INVENTORY_2_OUTLINED, "Insumos", "Gerenciar estoque e preços", acoes["ingredientes"]),
-                                criar_card_menu(ft.Icons.MENU_BOOK_OUTLINED, "Receitas", "Fichas técnicas e tempos", acoes["receitas"]),
+                        criar_secao(
+                            "Produção e cadastros",
+                            "Gerencie os ingredientes, receitas e entregas.",
+                            [
+                                (
+                                    "ingredientes",
+                                    ft.Icons.INVENTORY_2_OUTLINED,
+                                    "Insumos",
+                                    "Estoque, fornecedores e preços",
+                                ),
+                                (
+                                    "receitas",
+                                    ft.Icons.MENU_BOOK_OUTLINED,
+                                    "Receitas",
+                                    "Fichas técnicas e tempos",
+                                ),
+                                (
+                                    "agenda",
+                                    ft.Icons.CALENDAR_MONTH_OUTLINED,
+                                    "Agenda de Produção",
+                                    "Encomendas e entregas",
+                                ),
                             ],
                         ),
-                        ft.Row(
-                            spacing=12,
-                            controls=[
-                                criar_card_menu(ft.Icons.CALCULATE_OUTLINED, "Custos Fixos", "Despesas, rateio e taxas", acoes["custos_fixos"]),
-                                criar_card_menu(ft.Icons.DESCRIPTION_OUTLINED, "Orçamentos", "Montar e enviar propostas", acoes["orcamentos"]),
+                        criar_secao(
+                            "Gestão do negócio",
+                            "Acompanhe os custos, vendas e resultados.",
+                            [
+                                (
+                                    "custos_fixos",
+                                    ft.Icons.CALCULATE_OUTLINED,
+                                    "Custos Fixos",
+                                    "Despesas, mão de obra e taxas",
+                                ),
+                                (
+                                    "orcamentos",
+                                    ft.Icons.DESCRIPTION_OUTLINED,
+                                    "Orçamentos",
+                                    "Propostas e acompanhamento",
+                                ),
+                                (
+                                    "relatorios",
+                                    ft.Icons.BAR_CHART_OUTLINED,
+                                    "Relatórios",
+                                    "Análise de custos e lucratividade",
+                                ),
                             ],
                         ),
-                        ft.Row(
-                            spacing=12,
-                            controls=[
-                                criar_card_menu(ft.Icons.CALENDAR_MONTH_OUTLINED, "Agenda de Produção", "Organizar encomendas e entregas", acoes["agenda"]),
-                                criar_card_menu(ft.Icons.BAR_CHART_OUTLINED, "Relatórios", "Análise de lucratividade", acoes["relatorios"]),
-                            ],
-                        ),
-                        ft.Row(
-                            spacing=12,
-                            controls=[
-                                criar_card_menu(ft.Icons.SAVE_OUTLINED, "Backup / Exportar", "Salvar e restaurar dados", acoes["backup"]),
+                        criar_secao(
+                            "Segurança dos dados",
+                            "Mantenha as informações da doceria protegidas.",
+                            [
+                                (
+                                    "backup",
+                                    ft.Icons.SAVE_OUTLINED,
+                                    "Backup e Exportação",
+                                    "Salvar e restaurar seus dados",
+                                ),
                             ],
                         ),
                     ],
