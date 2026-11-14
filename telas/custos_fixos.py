@@ -13,7 +13,6 @@ def criar_abrir_custos_fixos(dependencias):
     indice_atual = dependencias["indice_atual"]
     navegacao_ref = dependencias["navegacao_ref"]
     voltar_inicio = dependencias["voltar_inicio"]
-    obter_conexao = dependencias["obter_conexao"]
     obter_remuneracao_mensal_desejada = dependencias["obter_remuneracao_mensal_desejada"]
     obter_horas_produtivas_mensais = dependencias["obter_horas_produtivas_mensais"]
     obter_impostos_pct = dependencias["obter_impostos_pct"]
@@ -28,30 +27,22 @@ def criar_abrir_custos_fixos(dependencias):
     salvar_markup_ideal = dependencias["salvar_markup_ideal"]
     salvar_margem_minima = dependencias["salvar_margem_minima"]
     atualizar_custo_fixo = dependencias["atualizar_custo_fixo"]
+    listar_custos_fixos = dependencias["listar_custos_fixos"]
+    obter_faturamento_mensal = dependencias["obter_faturamento_mensal"]
+    salvar_faturamento_mensal = dependencias["salvar_faturamento_mensal"]
     cadastrar_custo_fixo = dependencias["cadastrar_custo_fixo"]
     excluir_custo_fixo = dependencias["excluir_custo_fixo"]
 
     def abrir_custos_fixos(e=None):
     
-        conexao = obter_conexao()
-    
-        try:
-            custos = conexao.execute(
-                "SELECT * FROM custos_fixos ORDER BY descricao"
-            ).fetchall()
-    
-            faturamento_row = conexao.execute("SELECT valor FROM configuracoes WHERE chave = 'faturamento_mensal'").fetchone()
-            faturamento_atual = faturamento_row["valor"] if faturamento_row else "2000.00"
-            remuneracao_atual = obter_remuneracao_mensal_desejada()
-            horas_produtivas_atual = obter_horas_produtivas_mensais()
-            impostos_atual = obter_impostos_pct()
-    
-            taxas_atuais = obter_taxas_pagamento()
-            markup_ideal_atual = obter_markup_ideal()
-            margem_minima_atual = obter_margem_minima()
-    
-        finally:
-            conexao.close()
+        custos = listar_custos_fixos()
+        faturamento_atual = obter_faturamento_mensal()
+        remuneracao_atual = obter_remuneracao_mensal_desejada()
+        horas_produtivas_atual = obter_horas_produtivas_mensais()
+        impostos_atual = obter_impostos_pct()
+        taxas_atuais = obter_taxas_pagamento()
+        markup_ideal_atual = obter_markup_ideal()
+        margem_minima_atual = obter_margem_minima()
     
         total_custos = sum(
             c["valor_centavos"] for c in custos
@@ -169,12 +160,7 @@ def criar_abrir_custos_fixos(dependencias):
                 if float(margem_minima_valor) < 0 or float(margem_minima_valor) >= 100:
                     raise ValueError("A margem mínima deve estar entre 0% e 99,99%.")
     
-                conexao = obter_conexao()
-                try:
-                    conexao.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES ('faturamento_mensal', ?)", (val_fat,))
-                    conexao.commit()
-                finally:
-                    conexao.close()
+                salvar_faturamento_mensal(val_fat)
     
                 salvar_remuneracao_mensal_desejada(float(val_remuneracao))
                 salvar_horas_produtivas_mensais(float(val_horas))
