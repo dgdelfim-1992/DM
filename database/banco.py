@@ -704,6 +704,39 @@ def listar_custos_fixos():
     finally:
         conexao.close()
 
+
+def obter_faturamento_mensal():
+    """Retorna o faturamento mensal de referência configurado."""
+    conexao = obter_conexao()
+    try:
+        linha = conexao.execute(
+            "SELECT valor FROM configuracoes WHERE chave = 'faturamento_mensal'"
+        ).fetchone()
+        return str(linha["valor"]) if linha else "2000.00"
+    finally:
+        conexao.close()
+
+
+def salvar_faturamento_mensal(valor):
+    """Valida e salva o faturamento mensal de referência."""
+    try:
+        numero = float(str(valor).replace(",", ".").strip())
+    except (TypeError, ValueError) as erro:
+        raise ValueError("Informe um faturamento mensal válido.") from erro
+    if not math.isfinite(numero) or numero <= 0:
+        raise ValueError("O faturamento mensal deve ser maior que zero.")
+    conexao = obter_conexao()
+    try:
+        conexao.execute(
+            "INSERT OR REPLACE INTO configuracoes (chave, valor) "
+            "VALUES ('faturamento_mensal', ?)",
+            (str(valor).replace(",", ".").strip(),),
+        )
+        conexao.commit()
+        return numero
+    finally:
+        conexao.close()
+
 # =========================================================
 # RECEITAS E SUB-RECEITAS
 # =========================================================
@@ -909,6 +942,59 @@ def cadastrar_receita(nome, tipo, rendimento_unidades, custo_embalagem_centavos,
             )
         conexao.commit()
         return receita_id
+    finally:
+        conexao.close()
+
+
+def listar_receitas_ativas(tipo=None):
+    """Lista receitas ativas, opcionalmente filtradas por tipo."""
+    conexao = obter_conexao()
+    try:
+        if tipo:
+            return conexao.execute(
+                "SELECT * FROM receitas WHERE ativo = 1 AND tipo = ? ORDER BY nome",
+                (str(tipo).strip().upper(),),
+            ).fetchall()
+        return conexao.execute(
+            "SELECT * FROM receitas WHERE ativo = 1 ORDER BY nome"
+        ).fetchall()
+    finally:
+        conexao.close()
+
+
+def listar_produtos_finais():
+    """Lista somente as receitas do tipo produto final."""
+    return listar_receitas_ativas("PRODUTO")
+
+
+def listar_sub_receitas_ativas():
+    """Lista somente as sub-receitas ativas."""
+    return listar_receitas_ativas("SUB_RECEITA")
+
+
+def obter_dados_relatorio_geral():
+    """Busca em uma única conexão os dados-base do relatório gerencial."""
+    conexao = obter_conexao()
+    try:
+        receitas = conexao.execute(
+            "SELECT * FROM receitas WHERE ativo = 1 ORDER BY tipo DESC, nome"
+        ).fetchall()
+        custos = conexao.execute(
+            "SELECT * FROM custos_fixos ORDER BY descricao"
+        ).fetchall()
+        ingredientes = conexao.execute(
+            "SELECT * FROM ingredientes WHERE ativo = 1 ORDER BY nome"
+        ).fetchall()
+        linha_faturamento = conexao.execute(
+            "SELECT valor FROM configuracoes WHERE chave = 'faturamento_mensal'"
+        ).fetchone()
+        faturamento = float(linha_faturamento["valor"]) if linha_faturamento else 2000.0
+        return {
+            "receitas": receitas,
+            "custos": custos,
+            "ingredientes": ingredientes,
+            "faturamento_alvo": faturamento,
+        }
     finally:
         conexao.close()
 
