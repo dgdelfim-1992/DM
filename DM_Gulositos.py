@@ -1654,7 +1654,6 @@ def main(page: ft.Page):
         "indice_atual": indice_atual,
         "navegacao_ref": navegacao_ref,
         "voltar_inicio": voltar_inicio,
-        "obter_conexao": obter_conexao,
         "calcular_custo_receita": calcular_custo_receita,
         "listar_relatorio_precificacao_v2": listar_relatorio_precificacao_v2,
         "obter_dados_relatorio_geral": obter_dados_relatorio_geral,
