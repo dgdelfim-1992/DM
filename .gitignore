@@ -16,6 +16,7 @@ env/
 database/backups/
 
 # Flet / Flutter / Android build artifacts
+.flet/
 build/
 dist/
 .dart_tool/
