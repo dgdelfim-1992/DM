@@ -66,7 +66,6 @@ from database.banco import (
     atualizar_custo_fixo,
     excluir_custo_fixo,
     obter_fator_custo_fixo,
-    obter_conexao,
     salvar_orcamento,
     excluir_orcamentos,
     atualizar_orcamento as atualizar_orcamento_salvo,
@@ -76,6 +75,13 @@ from database.banco import (
     atualizar_status_orcamento,
     obter_dados_painel,
     listar_agenda_producao,
+    listar_custos_fixos,
+    obter_faturamento_mensal,
+    salvar_faturamento_mensal,
+    listar_receitas_ativas,
+    listar_sub_receitas_ativas,
+    listar_produtos_finais,
+    obter_dados_relatorio_geral,
     atualizar_status_producao,
 )
 
@@ -810,13 +816,7 @@ def main(page: ft.Page):
         em_edicao = precificacao_id is not None
         dados_atuais = obter_precificacao_v2(precificacao_id) if em_edicao else None
 
-        conexao = obter_conexao()
-        try:
-            receitas = conexao.execute(
-                "SELECT * FROM receitas WHERE ativo = 1 AND tipo = 'PRODUTO' ORDER BY nome"
-            ).fetchall()
-        finally:
-            conexao.close()
+        receitas = listar_produtos_finais()
 
         if not receitas:
             mostrar_aviso("Cadastre um Produto Final primeiro.")
@@ -1595,7 +1595,6 @@ def main(page: ft.Page):
         "navegacao_ref": navegacao_ref,
         "voltar_inicio": voltar_inicio,
         "filtro_receita": filtro_receita,
-        "obter_conexao": obter_conexao,
         "excluir_receita": excluir_receita,
         "mostrar_aviso": mostrar_aviso,
         "criar_dialogo_padrao": criar_dialogo_padrao,
@@ -1608,6 +1607,8 @@ def main(page: ft.Page):
         "criar_campo_padrao": criar_campo_padrao,
         "atualizar_receita": atualizar_receita,
         "cadastrar_receita": cadastrar_receita,
+        "listar_receitas_ativas": listar_receitas_ativas,
+        "listar_sub_receitas_ativas": listar_sub_receitas_ativas,
     })
     abrir_custos_fixos = criar_abrir_custos_fixos({
         "ft": ft,
@@ -1620,7 +1621,6 @@ def main(page: ft.Page):
         "indice_atual": indice_atual,
         "navegacao_ref": navegacao_ref,
         "voltar_inicio": voltar_inicio,
-        "obter_conexao": obter_conexao,
         "obter_remuneracao_mensal_desejada": obter_remuneracao_mensal_desejada,
         "obter_horas_produtivas_mensais": obter_horas_produtivas_mensais,
         "obter_impostos_pct": obter_impostos_pct,
@@ -1637,6 +1637,9 @@ def main(page: ft.Page):
         "atualizar_custo_fixo": atualizar_custo_fixo,
         "cadastrar_custo_fixo": cadastrar_custo_fixo,
         "excluir_custo_fixo": excluir_custo_fixo,
+        "listar_custos_fixos": listar_custos_fixos,
+        "obter_faturamento_mensal": obter_faturamento_mensal,
+        "salvar_faturamento_mensal": salvar_faturamento_mensal,
     })
     abrir_relatorios, montar_painel_inicial = criar_telas_relatorios({
         "ft": ft,
@@ -1654,6 +1657,7 @@ def main(page: ft.Page):
         "obter_conexao": obter_conexao,
         "calcular_custo_receita": calcular_custo_receita,
         "listar_relatorio_precificacao_v2": listar_relatorio_precificacao_v2,
+        "obter_dados_relatorio_geral": obter_dados_relatorio_geral,
         "calcular_custo_fixo_proporcional": calcular_custo_fixo_proporcional,
         "obter_dados_painel": obter_dados_painel,
         "criar_indicador": criar_indicador,
