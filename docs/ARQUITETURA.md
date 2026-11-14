@@ -77,3 +77,12 @@ Relatórios e painel inicial foram extraídos para `telas/relatorios.py`, preser
 ## Serviço de precificação
 
 As fórmulas sem acesso a banco ou interface foram centralizadas em `servicos/precificacao_service.py`: cálculo do preço sugerido a partir de custo, markup, impostos e taxas; e cálculo dos indicadores do preço praticado (markup aplicado, margem de contribuição e resultado após rateio). A camada `database/banco.py` continua responsável por buscar os dados e orquestrar os custos, delegando essas fórmulas ao serviço. Foram adicionados testes unitários em `tests/test_precificacao_service.py`. Os testes ainda precisam ser executados no ambiente local do projeto.
+
+
+## Serviço de backup e restauração
+
+As rotinas de backup foram centralizadas em `servicos/backup_service.py`. O serviço cria cópias consistentes pela API de backup do SQLite, valida a integridade e a presença das tabelas essenciais, limita a retenção dos backups automáticos e gera bytes para exportação.
+
+Na restauração, o arquivo selecionado é gravado em um temporário e validado antes de qualquer substituição. Quando já existe um banco ativo, o serviço finaliza as operações pendentes e cria uma cópia em `database/backups/` antes de substituir o arquivo. A interface solicita duas confirmações e orienta o usuário a reiniciar o aplicativo após a restauração.
+
+Os testes do serviço usam bancos SQLite temporários e não devem acessar o banco real da doceria.
