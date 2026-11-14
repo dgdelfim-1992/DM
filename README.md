@@ -50,8 +50,10 @@ Os testes de serviços que manipulam SQLite devem usar bancos temporários. Não
 
 ## Proteção dos dados
 
-- O banco de produção fica em `database/dm_gulositos.db` e não deve ser versionado.
-- Cópias automáticas e cópias anteriores à restauração ficam em `database/backups/`.
+- O banco de produção usa `FLET_APP_STORAGE_DATA/database/dm_gulositos.db` quando executado pelo Flet; esse diretório é persistente e privado do aplicativo.
+- Na execução direta por `python DM_Gulositos.py`, sem a variável do Flet, o caminho legado `database/dm_gulositos.db` continua sendo utilizado.
+- Na primeira inicialização com armazenamento Flet, o banco legado é copiado para o novo diretório por meio do SQLite e validado. O arquivo de origem não é apagado.
+- Cópias automáticas e cópias anteriores à restauração ficam na pasta `database/backups/` dentro do diretório de dados ativo.
 - O backup exportado deve ser guardado em local separado do dispositivo.
 - A restauração substitui os dados atuais; confirme o arquivo antes de prosseguir.
 - Antes da restauração, o aplicativo cria uma cópia de segurança do banco atual.
